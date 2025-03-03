@@ -1,4 +1,7 @@
-export const getWelcomeEmailTemplate = (name: string, email: string, password: string) => `
+export const getWelcomeEmailTemplate = (name: string, email: string, password: string) => {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
+  
+  return `
 <!DOCTYPE html>
 <html>
 <head>
@@ -23,7 +26,7 @@ export const getWelcomeEmailTemplate = (name: string, email: string, password: s
     <p>Para acessar o sistema, clique no botão abaixo:</p>
     
     <div style="text-align: center; margin: 30px 0;">
-      <a href="${process.env.NEXT_PUBLIC_APP_URL}/login" 
+      <a href="${baseUrl}/login" 
          style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
         Acessar o Sistema
       </a>
@@ -39,4 +42,4 @@ export const getWelcomeEmailTemplate = (name: string, email: string, password: s
   </div>
 </body>
 </html>
-` 
+`} 
