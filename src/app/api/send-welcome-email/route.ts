@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   try {
     const { email, password, name } = await request.json()
     
-    // Primeiro, cria o usuário com a senha fornecida
+    // Cria o usuário com a senha fornecida
     const { data: userData, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -34,18 +34,14 @@ export async function POST(request: Request) {
     // Gera o HTML do email usando o template
     const emailHtml = getWelcomeEmailTemplate(name, email, password)
 
-    // Envia o email com as credenciais
-    const { error: emailError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email,
-      options: {
-        data: {
-          name,
-          password,
-          email_template: emailHtml
-        },
-        redirectTo: `${process.env.NEXT_PUBLIC_VERCEL_URL || process.env.NEXT_PUBLIC_APP_URL}/login`
-      }
+    // Envia o email usando o serviço de email do Supabase
+    const { error: emailError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+      data: {
+        name,
+        password,
+        email_template: emailHtml
+      },
+      redirectTo: `${process.env.NEXT_PUBLIC_VERCEL_URL || process.env.NEXT_PUBLIC_APP_URL}/login`
     })
 
     if (emailError) {
