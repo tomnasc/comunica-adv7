@@ -13,6 +13,7 @@ export default function UsersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
+  const [showResetPassword, setShowResetPassword] = useState(false)
   const [filters, setFilters] = useState({
     search: '',
     department: '',
@@ -27,7 +28,8 @@ export default function UsersPage() {
     name: '',
     email: '',
     department: '',
-    role: 'user'
+    role: 'user',
+    password: ''
   })
 
   const ITEMS_PER_PAGE = 10
@@ -126,10 +128,51 @@ export default function UsersPage() {
     }))
   }
 
+  // Função para gerar senha aleatória de 6 dígitos
+  const generateRandomPassword = () => {
+    return Math.floor(100000 + Math.random() * 900000).toString()
+  }
+
+  // Função para enviar email de boas-vindas
+  const sendWelcomeEmail = async (email: string, password: string, name: string) => {
+    try {
+      const response = await fetch('/api/send-welcome-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, name }),
+      })
+
+      if (!response.ok) throw new Error('Erro ao enviar email')
+    } catch (error) {
+      console.error('Erro ao enviar email:', error)
+      throw error
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
       if (isEditMode) {
+        if (showResetPassword) {
+          // Gerar nova senha aleatória
+          const newPassword = generateRandomPassword()
+          
+          // Atualizar senha no Supabase Auth
+          const { error: authError } = await supabase.auth.admin.updateUserById(
+            formData.id,
+            { password: newPassword }
+          )
+
+          if (authError) throw authError
+
+          // Enviar email com nova senha
+          await sendWelcomeEmail(formData.email, newPassword, formData.name)
+          
+          toast.success('Nova senha gerada e enviada por email!')
+        }
+
         // Atualizar usuário existente
         const { error: dbError } = await supabase.rpc('update_user', {
           target_user_id: formData.id,
@@ -143,10 +186,14 @@ export default function UsersPage() {
 
         toast.success('Usuário atualizado com sucesso!')
       } else {
+        // Gerar senha aleatória para novo usuário
+        const password = generateRandomPassword()
+
         // Criar novo usuário
-        const { data: authData, error: authError } = await supabase.auth.signUp({
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
           email: formData.email,
-          password: Math.random().toString(36).slice(-8),
+          password: password,
+          email_confirm: true
         })
 
         if (authError) throw authError
@@ -165,16 +212,20 @@ export default function UsersPage() {
 
         if (dbError) {
           console.error('Erro ao criar usuário no banco:', dbError)
-          await supabase.auth.admin.deleteUser(authData.user.id).catch(console.error)
+          await supabase.auth.admin.deleteUser(authData.user.id)
           throw dbError
         }
 
-        toast.success('Usuário criado com sucesso! Um email será enviado para definição da senha.')
+        // Enviar email com as credenciais
+        await sendWelcomeEmail(formData.email, password, formData.name)
+
+        toast.success('Usuário criado com sucesso! Um email foi enviado com as credenciais.')
       }
 
       setIsModalOpen(false)
-      setFormData({ id: '', name: '', email: '', department: '', role: 'user' })
+      setFormData({ id: '', name: '', email: '', department: '', role: 'user', password: '' })
       setIsEditMode(false)
+      setShowResetPassword(false)
       await loadUsers()
     } catch (error: any) {
       console.error('Erro ao salvar usuário:', error)
@@ -188,7 +239,8 @@ export default function UsersPage() {
       name: user.name,
       email: user.email,
       department: user.department,
-      role: user.role
+      role: user.role,
+      password: ''
     })
     setIsEditMode(true)
     setIsModalOpen(true)
@@ -241,7 +293,7 @@ export default function UsersPage() {
             <button
               onClick={() => {
                 setIsEditMode(false)
-                setFormData({ id: '', name: '', email: '', department: '', role: 'user' })
+                setFormData({ id: '', name: '', email: '', department: '', role: 'user', password: '' })
                 setIsModalOpen(true)
               }}
               className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -468,6 +520,20 @@ export default function UsersPage() {
                         <option value="admin">Administrador</option>
                       </select>
                     </div>
+
+                    {isEditMode && (
+                      <div className="mt-4">
+                        <label className="inline-flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={showResetPassword}
+                            onChange={(e) => setShowResetPassword(e.target.checked)}
+                            className="form-checkbox h-5 w-5 text-indigo-600"
+                          />
+                          <span className="ml-2">Gerar e enviar nova senha por email</span>
+                        </label>
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
@@ -482,7 +548,7 @@ export default function UsersPage() {
                       onClick={() => {
                         setIsModalOpen(false)
                         setIsEditMode(false)
-                        setFormData({ id: '', name: '', email: '', department: '', role: 'user' })
+                        setFormData({ id: '', name: '', email: '', department: '', role: 'user', password: '' })
                       }}
                       className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:col-start-1 sm:text-sm"
                     >

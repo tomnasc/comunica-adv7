@@ -13,6 +13,7 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname()
   const [user, setUser] = useState<User | null>(null)
+  const [showUserMenu, setShowUserMenu] = useState(false)
 
   useEffect(() => {
     const getUser = async () => {
@@ -41,6 +42,11 @@ export default function DashboardLayout({
       { name: 'Cultos Especiais', href: '/dashboard/services/special', current: pathname === '/dashboard/services/special' }
     ] : [])
   ]
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    window.location.href = '/login'
+  }
 
   return (
     <div>
@@ -71,15 +77,38 @@ export default function DashboardLayout({
             </div>
             <div className="hidden md:block">
               <div className="ml-4 flex items-center md:ml-6">
-                <button
-                  onClick={async () => {
-                    await supabase.auth.signOut()
-                    window.location.href = '/login'
-                  }}
-                  className="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  Sair
-                </button>
+                {/* Menu do usuário */}
+                <div className="ml-3 relative">
+                  <div>
+                    <button
+                      onClick={() => setShowUserMenu(!showUserMenu)}
+                      className="max-w-xs bg-white flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                      <span className="sr-only">Abrir menu do usuário</span>
+                      <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                        <span className="text-indigo-600 font-medium">
+                          {user?.name?.charAt(0).toUpperCase() || 'U'}
+                        </span>
+                      </div>
+                    </button>
+                  </div>
+                  {showUserMenu && (
+                    <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none">
+                      <Link
+                        href="/dashboard/profile"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        Alterar Senha
+                      </Link>
+                      <button
+                        onClick={handleSignOut}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        Sair
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
