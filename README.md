@@ -1,6 +1,6 @@
 # Sistema de Comunicação ADV7
 
-Este é um sistema de gerenciamento de comunicação para a igreja ADV7, desenvolvido com Next.js, React e Supabase.
+Este é um sistema de gerenciamento de comunicação para a Igreja Adventista do Sétimo Dia, desenvolvido com Next.js, React e Supabase.
 
 ## Funcionalidades Principais
 
