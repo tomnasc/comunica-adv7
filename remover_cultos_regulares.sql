@@ -1,0 +1,1 @@
+-- Script SQL para remover todos os cultos regulares do banco de dados
