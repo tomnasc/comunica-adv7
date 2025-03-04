@@ -270,19 +270,26 @@ export default function UsersPage() {
     if (!confirm('Tem certeza que deseja excluir este usuário?')) return
 
     try {
+      // Primeira etapa: excluir da tabela public.users usando a função RPC
       const { data, error: dbError } = await supabase.rpc('delete_user', {
         target_user_id: userId
       })
 
       if (dbError) {
-        console.error('Erro ao excluir usuário:', dbError)
+        console.error('Erro ao excluir usuário do banco de dados:', dbError)
         throw new Error(dbError.message)
       }
 
-      if (data) {
-        toast.success('Usuário excluído com sucesso!')
-        setUsers(users.filter(user => user.id !== userId))
+      // Segunda etapa: excluir da tabela auth.users usando supabaseAdmin
+      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId)
+
+      if (authError) {
+        console.error('Erro ao excluir usuário da autenticação:', authError)
+        toast.error('Usuário excluído do banco de dados, mas não do sistema de autenticação')
       }
+
+      toast.success('Usuário excluído com sucesso!')
+      setUsers(users.filter(user => user.id !== userId))
     } catch (error: any) {
       console.error('Erro ao excluir usuário:', error)
       toast.error(error.message || 'Erro ao excluir usuário')
