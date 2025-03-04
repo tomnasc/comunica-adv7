@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import type { User } from '@/types'
+import { Cog6ToothIcon } from '@heroicons/react/24/outline'
 
 export default function DashboardLayout({
   children,
@@ -82,13 +83,11 @@ export default function DashboardLayout({
                   <div>
                     <button
                       onClick={() => setShowUserMenu(!showUserMenu)}
-                      className="max-w-xs bg-white flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      className="max-w-xs bg-gray-800 flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                     >
                       <span className="sr-only">Abrir menu do usuário</span>
-                      <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                        <span className="text-indigo-600 font-medium">
-                          {user?.name?.charAt(0).toUpperCase() || 'U'}
-                        </span>
+                      <div className="h-8 w-8 rounded-full bg-gray-700 flex items-center justify-center text-white">
+                        <Cog6ToothIcon className="h-5 w-5" aria-hidden="true" />
                       </div>
                     </button>
                   </div>
@@ -98,7 +97,7 @@ export default function DashboardLayout({
                         href="/dashboard/profile"
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       >
-                        Alterar Senha
+                        Configurações da Conta
                       </Link>
                       <button
                         onClick={handleSignOut}
@@ -130,6 +129,15 @@ export default function DashboardLayout({
                 {item.name}
               </Link>
             ))}
+            <Link
+              href="/dashboard/profile"
+              className="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium w-full text-left"
+            >
+              <div className="flex items-center">
+                <Cog6ToothIcon className="h-5 w-5 mr-2" aria-hidden="true" />
+                Configurações da Conta
+              </div>
+            </Link>
             <button
               onClick={async () => {
                 await supabase.auth.signOut()
