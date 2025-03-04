@@ -3,7 +3,20 @@
 import React, { useState, useEffect } from 'react'
 import { toast } from 'react-hot-toast'
 import { supabase } from '@/lib/supabaseClient'
+import { createClient } from '@supabase/supabase-js'
 import type { User } from '@/types'
+
+// Cria cliente Supabase com a chave de serviço para operações administrativas
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+)
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -136,18 +149,25 @@ export default function UsersPage() {
   // Função para enviar email de boas-vindas
   const sendWelcomeEmail = async (email: string, password: string, name: string) => {
     try {
+      console.log('Enviando email com os dados:', { email, password, name });
       const response = await fetch('/api/send-welcome-email', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email, password, name }),
-      })
+      });
 
-      if (!response.ok) throw new Error('Erro ao enviar email')
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Resposta de erro do servidor:', errorData);
+        throw new Error(`Erro ao enviar email: ${errorData.error || response.statusText}`);
+      }
+      
+      return await response.json();
     } catch (error) {
-      console.error('Erro ao enviar email:', error)
-      throw error
+      console.error('Erro ao enviar email:', error);
+      throw error;
     }
   }
 
@@ -159,8 +179,8 @@ export default function UsersPage() {
           // Gerar nova senha aleatória
           const newPassword = generateRandomPassword()
           
-          // Atualizar senha no Supabase Auth
-          const { error: authError } = await supabase.auth.admin.updateUserById(
+          // Atualizar senha no Supabase Auth usando o cliente admin
+          const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
             formData.id,
             { password: newPassword }
           )
@@ -189,8 +209,8 @@ export default function UsersPage() {
         // Gerar senha aleatória para novo usuário
         const password = generateRandomPassword()
 
-        // Criar novo usuário
-        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        // Criar novo usuário usando o cliente admin
+        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
           email: formData.email,
           password: password,
           email_confirm: true
@@ -212,7 +232,7 @@ export default function UsersPage() {
 
         if (dbError) {
           console.error('Erro ao criar usuário no banco:', dbError)
-          await supabase.auth.admin.deleteUser(authData.user.id)
+          await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
           throw dbError
         }
 
