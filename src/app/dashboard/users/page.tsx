@@ -82,17 +82,22 @@ export default function UsersPage() {
 
   const loadUsers = async () => {
     try {
-      const { data, error } = await supabase
+      // Usar o cliente admin para garantir que todos os usuários sejam carregados
+      const { data, error } = await supabaseAdmin
         .from('users')
         .select('*')
         .order('name')
 
-      if (error) throw error
+      if (error) {
+        console.error('Erro ao carregar usuários:', error)
+        throw error
+      }
 
-      setUsers(data)
+      console.log('Usuários carregados:', data?.length || 0)
+      setUsers(data || [])
     } catch (error: any) {
       console.error('Erro ao carregar usuários:', error)
-      toast.error('Erro ao carregar usuários')
+      toast.error('Erro ao carregar usuários: ' + error.message)
     } finally {
       setIsLoading(false)
     }
@@ -220,43 +225,109 @@ export default function UsersPage() {
 
         toast.success('Usuário atualizado com sucesso!')
       } else {
-        // Gerar senha aleatória para novo usuário
-        const password = generateRandomPassword()
+        // Verificar se o usuário já existe no Auth
+        const { data: existingUsers, error: checkError } = await supabaseAdmin.auth.admin.listUsers()
+        
+        // Filtrar usuários pelo email
+        const existingUser = existingUsers?.users?.find(user => 
+          user.email?.toLowerCase() === formData.email.toLowerCase()
+        )
 
-        // Criar novo usuário usando o cliente admin
-        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-          email: formData.email,
-          password: password,
-          email_confirm: true
-        })
-
-        if (authError) throw authError
-
-        if (!authData.user) {
-          throw new Error('Erro ao criar usuário no Auth')
+        if (checkError) {
+          console.error('Erro ao verificar usuário existente:', checkError)
+          throw checkError
         }
 
-        const { error: dbError } = await supabase.rpc('create_new_user', {
-          user_id: authData.user.id,
-          user_name: formData.name,
-          user_email: formData.email,
-          user_department: formData.department,
-          user_role: formData.role
-        })
+        // Se o usuário já existe no Auth, mas não no banco, criar apenas no banco
+        if (existingUser) {
+          console.log('Usuário já existe no Auth:', existingUser.id)
+          
+          // Verificar se o usuário já existe no banco
+          const { data: dbUser, error: dbCheckError } = await supabaseAdmin
+            .from('users')
+            .select('id')
+            .eq('id', existingUser.id)
+            .single()
+          
+          if (!dbCheckError && dbUser) {
+            throw new Error(`Usuário com email ${formData.email} já existe no sistema`)
+          }
+          
+          // Criar apenas no banco de dados
+          const { error: dbError } = await supabase.rpc('create_new_user', {
+            user_id: existingUser.id,
+            user_name: formData.name,
+            user_email: formData.email,
+            user_department: formData.department,
+            user_role: formData.role
+          })
 
-        if (dbError) {
-          console.error('Erro ao criar usuário no banco:', dbError)
-          await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
-          throw dbError
-        }
-
-        // Enviar email com as credenciais (novo usuário)
-        const emailResult = await sendWelcomeEmail(formData.email, password, formData.name, true)
-
-        if (emailResult.emailEnviado) {
-          toast.success('Usuário criado com sucesso! Um email foi enviado com as credenciais.')
+          if (dbError) {
+            console.error('Erro ao criar usuário no banco:', dbError)
+            throw dbError
+          }
+          
+          // Gerar nova senha para o usuário existente
+          const password = generateRandomPassword()
+          
+          // Atualizar senha no Auth
+          const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+            existingUser.id,
+            { password }
+          )
+          
+          if (updateError) {
+            console.error('Erro ao atualizar senha:', updateError)
+            throw updateError
+          }
+          
+          // Enviar email com as credenciais (usuário existente)
+          const emailResult = await sendWelcomeEmail(formData.email, password, formData.name, false)
+          
+          if (emailResult.emailEnviado) {
+            toast.success('Usuário recuperado com sucesso! Um email foi enviado com as novas credenciais.')
+          } else {
+            toast.success('Usuário recuperado com sucesso! Anote a nova senha temporária.')
+          }
         } else {
-          toast.success('Usuário criado com sucesso! Anote a senha temporária.')
+          // Gerar senha aleatória para novo usuário
+          const password = generateRandomPassword()
+
+          // Criar novo usuário usando o cliente admin
+          const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+            email: formData.email,
+            password: password,
+            email_confirm: true
+          })
+
+          if (authError) throw authError
+
+          if (!authData.user) {
+            throw new Error('Erro ao criar usuário no Auth')
+          }
+
+          const { error: dbError } = await supabase.rpc('create_new_user', {
+            user_id: authData.user.id,
+            user_name: formData.name,
+            user_email: formData.email,
+            user_department: formData.department,
+            user_role: formData.role
+          })
+
+          if (dbError) {
+            console.error('Erro ao criar usuário no banco:', dbError)
+            await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
+            throw dbError
+          }
+
+          // Enviar email com as credenciais (novo usuário)
+          const emailResult = await sendWelcomeEmail(formData.email, password, formData.name, true)
+
+          if (emailResult.emailEnviado) {
+            toast.success('Usuário criado com sucesso! Um email foi enviado com as credenciais.')
+          } else {
+            toast.success('Usuário criado com sucesso! Anote a senha temporária.')
+          }
         }
       }
 
