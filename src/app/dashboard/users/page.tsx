@@ -238,7 +238,7 @@ export default function UsersPage() {
       } else {
         console.log('Criando novo usuário:', formData)
         
-        // Verificar se o usuário já existe
+        // Verificar se o usuário já existe no Auth
         const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
         
         // Filtrar usuários pelo email
@@ -250,17 +250,19 @@ export default function UsersPage() {
           console.log('Usuário já existe no Auth:', existingUser.id)
           
           // Verificar se o usuário já existe no banco
-          const { data: dbUser } = await supabaseAdmin
+          const { data: dbUser, error: dbCheckError } = await supabaseAdmin
             .from('users')
-            .select('id')
+            .select('id, name')
             .eq('id', existingUser.id)
             .single()
           
-          if (dbUser) {
-            throw new Error(`Usuário com email ${formData.email} já existe no sistema`)
+          if (!dbCheckError && dbUser) {
+            // Usuário já existe no banco, mostrar mensagem amigável
+            toast.error(`Usuário com email ${formData.email} já existe no sistema como "${dbUser.name}"`)
+            return
           }
           
-          // Criar apenas no banco de dados - versão simplificada
+          // Usuário existe no Auth mas não no banco, criar apenas no banco
           const { error: dbError } = await supabaseAdmin
             .from('users')
             .insert({
@@ -291,58 +293,78 @@ export default function UsersPage() {
           }
           
           // Enviar email com as credenciais
-          const emailResult = await sendWelcomeEmail(formData.email, password, formData.name, false)
-          
-          if (emailResult.emailEnviado) {
-            toast.success('Usuário recuperado com sucesso! Um email foi enviado com as novas credenciais.')
-          } else {
-            toast.success('Usuário recuperado com sucesso! Anote a nova senha temporária.')
+          try {
+            const emailResult = await sendWelcomeEmail(formData.email, password, formData.name, false)
+            
+            if (emailResult.emailEnviado) {
+              toast.success('Usuário recuperado com sucesso! Um email foi enviado com as novas credenciais.')
+            } else {
+              toast.success(`Usuário recuperado com sucesso! Anote a senha temporária: ${password}`)
+            }
+          } catch (emailError) {
+            console.error('Erro ao enviar email:', emailError)
+            toast.success(`Usuário recuperado com sucesso! Anote a senha temporária: ${password}`)
           }
         } else {
+          // Usuário não existe, criar novo
           // Gerar senha aleatória para novo usuário
           const password = generateRandomPassword()
 
-          // Criar novo usuário usando o cliente admin
-          const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-            email: formData.email,
-            password: password,
-            email_confirm: true
-          })
-
-          if (authError) {
-            console.error('Erro ao criar usuário no Auth:', authError)
-            throw authError
-          }
-
-          if (!authData.user) {
-            throw new Error('Erro ao criar usuário no Auth')
-          }
-
-          // Criar usuário no banco de dados - versão simplificada
-          const { error: dbError } = await supabaseAdmin
-            .from('users')
-            .insert({
-              id: authData.user.id,
-              name: formData.name,
+          try {
+            // Criar novo usuário usando o cliente admin
+            const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
               email: formData.email,
-              department: formData.department,
-              role: formData.role
+              password: password,
+              email_confirm: true
             })
 
-          if (dbError) {
-            console.error('Erro ao criar usuário no banco:', dbError)
-            // Se falhar, excluir o usuário do Auth
-            await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
-            throw dbError
-          }
+            if (authError) {
+              console.error('Erro ao criar usuário no Auth:', authError)
+              throw authError
+            }
 
-          // Enviar email com as credenciais
-          const emailResult = await sendWelcomeEmail(formData.email, password, formData.name, true)
+            if (!authData.user) {
+              throw new Error('Erro ao criar usuário no Auth')
+            }
 
-          if (emailResult.emailEnviado) {
-            toast.success('Usuário criado com sucesso! Um email foi enviado com as credenciais.')
-          } else {
-            toast.success('Usuário criado com sucesso! Anote a senha temporária.')
+            // Criar usuário no banco de dados
+            const { error: dbError } = await supabaseAdmin
+              .from('users')
+              .insert({
+                id: authData.user.id,
+                name: formData.name,
+                email: formData.email,
+                department: formData.department,
+                role: formData.role
+              })
+
+            if (dbError) {
+              console.error('Erro ao criar usuário no banco:', dbError)
+              // Se falhar, excluir o usuário do Auth
+              await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
+              throw dbError
+            }
+
+            // Enviar email com as credenciais
+            try {
+              const emailResult = await sendWelcomeEmail(formData.email, password, formData.name, true)
+              
+              if (emailResult.emailEnviado) {
+                toast.success('Usuário criado com sucesso! Um email foi enviado com as credenciais.')
+              } else {
+                toast.success(`Usuário criado com sucesso! Anote a senha temporária: ${password}`)
+              }
+            } catch (emailError) {
+              console.error('Erro ao enviar email:', emailError)
+              toast.success(`Usuário criado com sucesso! Anote a senha temporária: ${password}`)
+            }
+          } catch (error: any) {
+            // Verificar se é erro de usuário já existente
+            if (error.message && error.message.includes('already been registered')) {
+              toast.error(`Email ${formData.email} já está registrado no sistema. Use outro email.`)
+            } else {
+              throw error
+            }
           }
         }
       }
