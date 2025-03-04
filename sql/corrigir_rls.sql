@@ -4,46 +4,39 @@
 -- Habilitar RLS na tabela users
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
--- Criar políticas para a tabela users (se ainda não existirem)
-DO $$
-BEGIN
-  -- Verifica se já existe uma política de leitura para usuários
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies 
-    WHERE tablename = 'users' AND policyname = 'Permitir leitura pelos próprios usuários'
-  ) THEN
-    -- Permitir usuários ver apenas seus próprios dados
-    CREATE POLICY "Permitir leitura pelos próprios usuários" 
-      ON public.users
-      FOR SELECT 
-      USING (auth.uid() = id OR auth.jwt() ->> 'role' = 'admin');
-  END IF;
+-- Remover políticas existentes para garantir consistência
+DROP POLICY IF EXISTS "Permitir leitura pelos próprios usuários" ON public.users;
+DROP POLICY IF EXISTS "Permitir atualização pelos próprios usuários" ON public.users;
+DROP POLICY IF EXISTS "Permitir administradores gerenciarem usuários" ON public.users;
+DROP POLICY IF EXISTS "Permitir administradores lerem todos os usuários" ON public.users;
 
-  -- Verifica se já existe uma política de atualização para usuários
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies 
-    WHERE tablename = 'users' AND policyname = 'Permitir atualização pelos próprios usuários'
-  ) THEN
-    -- Permitir usuários atualizarem apenas seus próprios dados
-    CREATE POLICY "Permitir atualização pelos próprios usuários" 
-      ON public.users
-      FOR UPDATE 
-      USING (auth.uid() = id OR auth.jwt() ->> 'role' = 'admin');
-  END IF;
+-- Criar nova política para permitir que administradores leiam todos os usuários
+CREATE POLICY "Permitir administradores lerem todos os usuários"
+ON public.users
+FOR SELECT
+USING (
+  (SELECT role FROM public.users WHERE id = auth.uid()) = 'admin'
+);
 
-  -- Política para administradores
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies 
-    WHERE tablename = 'users' AND policyname = 'Permitir administradores gerenciarem usuários'
-  ) THEN
-    -- Permitir administradores gerenciarem todos os usuários
-    CREATE POLICY "Permitir administradores gerenciarem usuários" 
-      ON public.users
-      FOR ALL 
-      USING (auth.jwt() ->> 'role' = 'admin');
-  END IF;
-END
-$$;
+-- Criar política para permitir que usuários vejam seus próprios dados
+CREATE POLICY "Permitir leitura pelos próprios usuários"
+ON public.users
+FOR SELECT
+USING (auth.uid() = id);
+
+-- Criar política para permitir que usuários atualizem seus próprios dados
+CREATE POLICY "Permitir atualização pelos próprios usuários"
+ON public.users
+FOR UPDATE
+USING (auth.uid() = id);
+
+-- Criar política para permitir que administradores criem, atualizem e deletem usuários
+CREATE POLICY "Permitir administradores gerenciarem usuários"
+ON public.users
+FOR ALL
+USING (
+  (SELECT role FROM public.users WHERE id = auth.uid()) = 'admin'
+);
 
 -- Habilitar RLS na tabela department_contents
 ALTER TABLE public.department_contents ENABLE ROW LEVEL SECURITY;
