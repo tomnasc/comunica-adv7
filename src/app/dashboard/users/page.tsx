@@ -193,15 +193,14 @@ export default function UsersPage() {
       if (isEditMode) {
         console.log('Atualizando usuário:', formData)
         
-        // Atualizar usuário diretamente no banco
+        // Atualizar usuário diretamente no banco - versão simplificada
         const { error: dbError } = await supabaseAdmin
           .from('users')
           .update({
             name: formData.name,
             email: formData.email,
             department: formData.department,
-            role: formData.role,
-            updated_at: new Date()
+            role: formData.role
           })
           .eq('id', formData.id)
 
@@ -261,7 +260,7 @@ export default function UsersPage() {
             throw new Error(`Usuário com email ${formData.email} já existe no sistema`)
           }
           
-          // Criar apenas no banco de dados
+          // Criar apenas no banco de dados - versão simplificada
           const { error: dbError } = await supabaseAdmin
             .from('users')
             .insert({
@@ -269,9 +268,7 @@ export default function UsersPage() {
               name: formData.name,
               email: formData.email,
               department: formData.department,
-              role: formData.role,
-              created_at: new Date(),
-              updated_at: new Date()
+              role: formData.role
             })
 
           if (dbError) {
@@ -321,7 +318,7 @@ export default function UsersPage() {
             throw new Error('Erro ao criar usuário no Auth')
           }
 
-          // Criar usuário no banco de dados
+          // Criar usuário no banco de dados - versão simplificada
           const { error: dbError } = await supabaseAdmin
             .from('users')
             .insert({
@@ -329,9 +326,7 @@ export default function UsersPage() {
               name: formData.name,
               email: formData.email,
               department: formData.department,
-              role: formData.role,
-              created_at: new Date(),
-              updated_at: new Date()
+              role: formData.role
             })
 
           if (dbError) {
