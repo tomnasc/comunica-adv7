@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { getWelcomeEmailTemplate } from './email-template'
-import nodemailer from 'nodemailer'
+import { Resend } from 'resend'
+
+// Inicializa o cliente Resend
+const resend = new Resend(process.env.RESEND_API_KEY || 're_123456789');
 
 // Inicializa o cliente Supabase com a chave de serviço
 const supabaseAdmin = createClient(
@@ -14,17 +17,6 @@ const supabaseAdmin = createClient(
     }
   }
 )
-
-// Configuração do transporte de email
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT),
-  secure: true,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASSWORD,
-  },
-})
 
 export async function POST(request: Request) {
   try {
@@ -50,16 +42,15 @@ export async function POST(request: Request) {
     // Gera o HTML do email usando o template
     const emailHtml = getWelcomeEmailTemplate(name, email, password)
 
-    // Envia o email usando Nodemailer em vez do Supabase
-    const mailOptions = {
-      from: process.env.FROM_EMAIL,
+    // Envia o email usando Resend
+    const result = await resend.emails.send({
+      from: 'Comunica ADV7 <onboarding@resend.dev>',
       to: email,
       subject: isNewUser ? 'Bem-vindo ao Sistema de Comunicação ADV7' : 'Nova senha para o Sistema de Comunicação ADV7',
       html: emailHtml
-    }
+    });
 
-    const result = await transporter.sendMail(mailOptions)
-    console.log('Email enviado com sucesso:', result)
+    console.log('Email enviado com sucesso:', result);
 
     return NextResponse.json({ success: true })
   } catch (error: any) {

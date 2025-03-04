@@ -24,6 +24,7 @@
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.50.1",
     "react-hot-toast": "^2.4.1",
+    "resend": "^4.1.2",
     "twilio": "^5.4.5",
     "zod": "^3.22.4"
   },
