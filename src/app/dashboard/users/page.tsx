@@ -82,6 +82,7 @@ export default function UsersPage() {
 
   const loadUsers = async () => {
     try {
+      console.log('Carregando usuários...')
       // Usar o cliente admin para garantir que todos os usuários sejam carregados
       const { data, error } = await supabaseAdmin
         .from('users')
@@ -190,6 +191,25 @@ export default function UsersPage() {
     e.preventDefault()
     try {
       if (isEditMode) {
+        console.log('Atualizando usuário:', formData)
+        
+        // Atualizar usuário diretamente no banco
+        const { error: dbError } = await supabaseAdmin
+          .from('users')
+          .update({
+            name: formData.name,
+            email: formData.email,
+            department: formData.department,
+            role: formData.role,
+            updated_at: new Date()
+          })
+          .eq('id', formData.id)
+
+        if (dbError) {
+          console.error('Erro ao atualizar usuário no banco:', dbError)
+          throw dbError
+        }
+
         if (showResetPassword) {
           // Gerar nova senha aleatória
           const newPassword = generateRandomPassword()
@@ -200,9 +220,12 @@ export default function UsersPage() {
             { password: newPassword }
           )
 
-          if (authError) throw authError
+          if (authError) {
+            console.error('Erro ao atualizar senha:', authError)
+            throw authError
+          }
 
-          // Enviar email com nova senha (usuário existente)
+          // Enviar email com nova senha
           const emailResult = await sendWelcomeEmail(formData.email, newPassword, formData.name, false)
           
           if (emailResult.emailEnviado) {
@@ -212,55 +235,44 @@ export default function UsersPage() {
           }
         }
 
-        // Atualizar usuário existente
-        const { error: dbError } = await supabase.rpc('update_user', {
-          target_user_id: formData.id,
-          user_name: formData.name,
-          user_email: formData.email,
-          user_department: formData.department,
-          user_role: formData.role
-        })
-
-        if (dbError) throw dbError
-
         toast.success('Usuário atualizado com sucesso!')
       } else {
-        // Verificar se o usuário já existe no Auth
-        const { data: existingUsers, error: checkError } = await supabaseAdmin.auth.admin.listUsers()
+        console.log('Criando novo usuário:', formData)
+        
+        // Verificar se o usuário já existe
+        const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
         
         // Filtrar usuários pelo email
         const existingUser = existingUsers?.users?.find(user => 
           user.email?.toLowerCase() === formData.email.toLowerCase()
         )
 
-        if (checkError) {
-          console.error('Erro ao verificar usuário existente:', checkError)
-          throw checkError
-        }
-
-        // Se o usuário já existe no Auth, mas não no banco, criar apenas no banco
         if (existingUser) {
           console.log('Usuário já existe no Auth:', existingUser.id)
           
           // Verificar se o usuário já existe no banco
-          const { data: dbUser, error: dbCheckError } = await supabaseAdmin
+          const { data: dbUser } = await supabaseAdmin
             .from('users')
             .select('id')
             .eq('id', existingUser.id)
             .single()
           
-          if (!dbCheckError && dbUser) {
+          if (dbUser) {
             throw new Error(`Usuário com email ${formData.email} já existe no sistema`)
           }
           
           // Criar apenas no banco de dados
-          const { error: dbError } = await supabase.rpc('create_new_user', {
-            user_id: existingUser.id,
-            user_name: formData.name,
-            user_email: formData.email,
-            user_department: formData.department,
-            user_role: formData.role
-          })
+          const { error: dbError } = await supabaseAdmin
+            .from('users')
+            .insert({
+              id: existingUser.id,
+              name: formData.name,
+              email: formData.email,
+              department: formData.department,
+              role: formData.role,
+              created_at: new Date(),
+              updated_at: new Date()
+            })
 
           if (dbError) {
             console.error('Erro ao criar usuário no banco:', dbError)
@@ -281,7 +293,7 @@ export default function UsersPage() {
             throw updateError
           }
           
-          // Enviar email com as credenciais (usuário existente)
+          // Enviar email com as credenciais
           const emailResult = await sendWelcomeEmail(formData.email, password, formData.name, false)
           
           if (emailResult.emailEnviado) {
@@ -300,27 +312,36 @@ export default function UsersPage() {
             email_confirm: true
           })
 
-          if (authError) throw authError
+          if (authError) {
+            console.error('Erro ao criar usuário no Auth:', authError)
+            throw authError
+          }
 
           if (!authData.user) {
             throw new Error('Erro ao criar usuário no Auth')
           }
 
-          const { error: dbError } = await supabase.rpc('create_new_user', {
-            user_id: authData.user.id,
-            user_name: formData.name,
-            user_email: formData.email,
-            user_department: formData.department,
-            user_role: formData.role
-          })
+          // Criar usuário no banco de dados
+          const { error: dbError } = await supabaseAdmin
+            .from('users')
+            .insert({
+              id: authData.user.id,
+              name: formData.name,
+              email: formData.email,
+              department: formData.department,
+              role: formData.role,
+              created_at: new Date(),
+              updated_at: new Date()
+            })
 
           if (dbError) {
             console.error('Erro ao criar usuário no banco:', dbError)
+            // Se falhar, excluir o usuário do Auth
             await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
             throw dbError
           }
 
-          // Enviar email com as credenciais (novo usuário)
+          // Enviar email com as credenciais
           const emailResult = await sendWelcomeEmail(formData.email, password, formData.name, true)
 
           if (emailResult.emailEnviado) {
@@ -359,23 +380,13 @@ export default function UsersPage() {
     if (!confirm('Tem certeza que deseja excluir este usuário?')) return
 
     try {
-      // Verificar se o usuário existe antes de tentar excluir
-      const { data: userExists, error: checkError } = await supabase
+      console.log('Excluindo usuário:', userId)
+      
+      // Excluir usuário do banco de dados primeiro
+      const { error: dbError } = await supabaseAdmin
         .from('users')
-        .select('id')
+        .delete()
         .eq('id', userId)
-        .single()
-
-      if (checkError || !userExists) {
-        console.error('Erro ao verificar usuário:', checkError)
-        toast.error('Usuário não encontrado no banco de dados')
-        return
-      }
-
-      // Primeira etapa: excluir da tabela public.users usando a função RPC
-      const { data, error: dbError } = await supabase.rpc('delete_user', {
-        target_user_id: userId
-      })
 
       if (dbError) {
         console.error('Erro ao excluir usuário do banco de dados:', dbError)
@@ -383,13 +394,13 @@ export default function UsersPage() {
         return
       }
 
-      // Segunda etapa: excluir da tabela auth.users usando supabaseAdmin
+      // Depois excluir da autenticação
       const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId)
 
       if (authError) {
         console.error('Erro ao excluir usuário da autenticação:', authError)
         toast.error(`Usuário excluído do banco de dados, mas erro ao excluir da autenticação: ${authError.message}`)
-        // Continuar mesmo com erro na autenticação, pois o usuário já foi removido do banco
+        // Continuar mesmo com erro na autenticação
       }
 
       toast.success('Usuário excluído com sucesso!')
