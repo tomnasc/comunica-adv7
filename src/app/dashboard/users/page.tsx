@@ -164,7 +164,17 @@ export default function UsersPage() {
         throw new Error(`Erro ao enviar email: ${errorData.error || response.statusText}`);
       }
       
-      return await response.json();
+      const result = await response.json();
+      
+      // Verificar se o email foi enviado com sucesso
+      if (!result.emailEnviado && result.senhaTemporaria) {
+        // Mostrar a senha para o usuário se o email falhou
+        toast.error(`Não foi possível enviar o email. Anote a senha temporária: ${result.senhaTemporaria}`);
+        // Mostrar alerta mais visível com a senha
+        alert(`IMPORTANTE: Não foi possível enviar o email. Anote a senha temporária: ${result.senhaTemporaria}`);
+      }
+      
+      return result;
     } catch (error) {
       console.error('Erro ao enviar email:', error);
       throw error;
@@ -188,9 +198,13 @@ export default function UsersPage() {
           if (authError) throw authError
 
           // Enviar email com nova senha (usuário existente)
-          await sendWelcomeEmail(formData.email, newPassword, formData.name, false)
+          const emailResult = await sendWelcomeEmail(formData.email, newPassword, formData.name, false)
           
-          toast.success('Nova senha gerada e enviada por email!')
+          if (emailResult.emailEnviado) {
+            toast.success('Nova senha gerada e enviada por email!')
+          } else {
+            toast.success('Nova senha gerada com sucesso!')
+          }
         }
 
         // Atualizar usuário existente
@@ -237,9 +251,13 @@ export default function UsersPage() {
         }
 
         // Enviar email com as credenciais (novo usuário)
-        await sendWelcomeEmail(formData.email, password, formData.name, true)
+        const emailResult = await sendWelcomeEmail(formData.email, password, formData.name, true)
 
-        toast.success('Usuário criado com sucesso! Um email foi enviado com as credenciais.')
+        if (emailResult.emailEnviado) {
+          toast.success('Usuário criado com sucesso! Um email foi enviado com as credenciais.')
+        } else {
+          toast.success('Usuário criado com sucesso! Anote a senha temporária.')
+        }
       }
 
       setIsModalOpen(false)

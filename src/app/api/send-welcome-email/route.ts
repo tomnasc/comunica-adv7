@@ -17,10 +17,25 @@ const supabaseAdmin = createClient(
 
 // Função para criar o transporter do nodemailer com configurações robustas
 const createTransporter = () => {
+  // Imprimir todas as variáveis de ambiente relacionadas ao SMTP para debug
+  console.log('Variáveis de ambiente SMTP:')
+  console.log('SMTP_HOST:', process.env.SMTP_HOST || 'não definido')
+  console.log('SMTP_PORT:', process.env.SMTP_PORT || 'não definido')
+  console.log('SMTP_USER:', process.env.SMTP_USER || 'não definido')
+  console.log('SMTP_PASSWORD:', process.env.SMTP_PASSWORD ? '[definido]' : 'não definido')
+  console.log('SMTP_SECURE:', process.env.SMTP_SECURE || 'não definido')
+  console.log('FROM_EMAIL:', process.env.FROM_EMAIL || 'não definido')
+  
   const secure = process.env.SMTP_SECURE === 'true'
   const port = Number(process.env.SMTP_PORT || 587)
   
   console.log(`Configurando SMTP: ${process.env.SMTP_HOST}:${port} (secure: ${secure})`)
+  
+  // Verificar se as variáveis essenciais estão definidas
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
+    console.error('Configurações SMTP incompletas. Verifique as variáveis de ambiente.')
+    throw new Error('Configurações SMTP incompletas')
+  }
   
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
@@ -66,31 +81,49 @@ export async function POST(request: Request) {
     // Gera o HTML do email usando o template
     const emailHtml = getWelcomeEmailTemplate(name, email, password)
 
-    // Cria o transporter para envio de email
-    const transporter = createTransporter()
+    // Tenta enviar o email, mas retorna a senha mesmo se falhar
+    let emailEnviado = false
+    let emailErro = null
     
-    // Testa a conexão antes de enviar
     try {
-      await transporter.verify()
-      console.log('Conexão SMTP verificada com sucesso')
-    } catch (verifyError) {
-      console.error('Erro ao verificar conexão SMTP:', verifyError)
-      // Continua mesmo com erro na verificação
+      // Cria o transporter para envio de email
+      const transporter = createTransporter()
+      
+      // Testa a conexão antes de enviar
+      try {
+        await transporter.verify()
+        console.log('Conexão SMTP verificada com sucesso')
+      } catch (verifyError) {
+        console.error('Erro ao verificar conexão SMTP:', verifyError)
+        // Continua mesmo com erro na verificação
+      }
+
+      // Envia o email
+      const mailOptions = {
+        from: process.env.FROM_EMAIL,
+        to: email,
+        subject: isNewUser ? 'Bem-vindo ao Sistema de Comunicação ADV7' : 'Nova senha para o Sistema de Comunicação ADV7',
+        html: emailHtml
+      }
+
+      console.log('Enviando email para:', email)
+      const result = await transporter.sendMail(mailOptions)
+      console.log('Email enviado com sucesso:', result)
+      emailEnviado = true
+    } catch (emailError: any) {
+      console.error('Erro ao enviar email:', emailError)
+      emailErro = emailError.message || 'Erro desconhecido ao enviar email'
     }
 
-    // Envia o email
-    const mailOptions = {
-      from: process.env.FROM_EMAIL,
-      to: email,
-      subject: isNewUser ? 'Bem-vindo ao Sistema de Comunicação ADV7' : 'Nova senha para o Sistema de Comunicação ADV7',
-      html: emailHtml
-    }
-
-    console.log('Enviando email para:', email)
-    const result = await transporter.sendMail(mailOptions)
-    console.log('Email enviado com sucesso:', result)
-
-    return NextResponse.json({ success: true })
+    // Retorna sucesso mesmo se o email falhar, mas inclui informações sobre o status do email
+    return NextResponse.json({ 
+      success: true,
+      emailEnviado,
+      emailErro,
+      // Inclui a senha na resposta para que o frontend possa mostrar ao usuário
+      // caso o email não tenha sido enviado
+      senhaTemporaria: emailEnviado ? undefined : password
+    })
   } catch (error: any) {
     console.error('Erro ao processar requisição:', error)
     return NextResponse.json(
