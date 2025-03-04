@@ -147,15 +147,15 @@ export default function UsersPage() {
   }
 
   // Função para enviar email de boas-vindas
-  const sendWelcomeEmail = async (email: string, password: string, name: string) => {
+  const sendWelcomeEmail = async (email: string, password: string, name: string, isNewUser: boolean = false) => {
     try {
-      console.log('Enviando email com os dados:', { email, password, name });
+      console.log('Enviando email com os dados:', { email, password, name, isNewUser });
       const response = await fetch('/api/send-welcome-email', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password, name }),
+        body: JSON.stringify({ email, password, name, isNewUser }),
       });
 
       if (!response.ok) {
@@ -187,8 +187,8 @@ export default function UsersPage() {
 
           if (authError) throw authError
 
-          // Enviar email com nova senha
-          await sendWelcomeEmail(formData.email, newPassword, formData.name)
+          // Enviar email com nova senha (usuário existente)
+          await sendWelcomeEmail(formData.email, newPassword, formData.name, false)
           
           toast.success('Nova senha gerada e enviada por email!')
         }
@@ -236,8 +236,8 @@ export default function UsersPage() {
           throw dbError
         }
 
-        // Enviar email com as credenciais
-        await sendWelcomeEmail(formData.email, password, formData.name)
+        // Enviar email com as credenciais (novo usuário)
+        await sendWelcomeEmail(formData.email, password, formData.name, true)
 
         toast.success('Usuário criado com sucesso! Um email foi enviado com as credenciais.')
       }
