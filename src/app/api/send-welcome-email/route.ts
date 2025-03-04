@@ -65,16 +65,41 @@ export async function POST(request: Request) {
 
     // Se for um novo usuário, criar no Auth
     if (isNewUser) {
-      const { data: userData, error: createError } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { name }
-      })
+      try {
+        // Verificar se o usuário já existe
+        const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
+        const existingUser = existingUsers?.users?.find(user => 
+          user.email?.toLowerCase() === email.toLowerCase()
+        )
+        
+        if (existingUser) {
+          console.log(`Usuário ${email} já existe no Auth, não será criado novamente`)
+        } else {
+          // Criar novo usuário apenas se não existir
+          const { data: userData, error: createError } = await supabaseAdmin.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true,
+            user_metadata: { name }
+          })
 
-      if (createError) {
-        console.error('Erro ao criar usuário:', createError)
-        throw createError
+          if (createError) {
+            console.error('Erro ao criar usuário:', createError)
+            // Não lançar erro se o usuário já existir
+            if (!createError.message.includes('already been registered')) {
+              throw createError
+            } else {
+              console.log(`Usuário ${email} já existe, continuando com o envio do email`)
+            }
+          }
+        }
+      } catch (error: any) {
+        // Ignorar erro de usuário já existente
+        if (error.message && !error.message.includes('already been registered')) {
+          throw error
+        } else {
+          console.log(`Erro ignorado: ${error.message}`)
+        }
       }
     }
 
