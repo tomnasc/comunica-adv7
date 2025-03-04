@@ -294,7 +294,12 @@ export default function ServiceInfoPage() {
   }
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
+    // Extrair ano, mês e dia da string de data
+    const [year, month, day] = dateString.split('T')[0].split('-').map(Number)
+    
+    // Criar uma nova data usando os componentes extraídos
+    const date = new Date(year, month - 1, day)
+    
     return date.toLocaleDateString('pt-BR', {
       weekday: 'long',
       day: '2-digit',

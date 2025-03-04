@@ -159,6 +159,17 @@ export default function SpecialServicesPage() {
     console.log('Enviando formulário de culto especial:', formData);
     
     try {
+      // Criar o objeto de data do deadline sem ajuste de fuso horário
+      const [datePart, timePart] = formData.deadline.split('T');
+      const [year, month, day] = datePart.split('-').map(Number);
+      const [hours, minutes] = timePart.split(':').map(Number);
+      
+      // Criar a data no formato ISO
+      const deadlineDate = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+      const isoDeadline = deadlineDate.toISOString();
+      
+      console.log('Deadline formatado:', isoDeadline);
+      
       if (isEditMode) {
         // Atualizar culto existente
         const { error: dbError } = await supabase.rpc('update_special_service', {
@@ -167,7 +178,7 @@ export default function SpecialServicesPage() {
           service_description: formData.description,
           service_date: formData.date,
           service_time: formData.time,
-          service_deadline: new Date(formData.deadline).toISOString(),
+          service_deadline: isoDeadline,
           service_status: formData.status
         })
 
@@ -184,7 +195,7 @@ export default function SpecialServicesPage() {
           service_description: formData.description,
           service_date: formData.date,
           service_time: formData.time,
-          service_deadline: new Date(formData.deadline).toISOString()
+          service_deadline: isoDeadline
         })
 
         if (dbError) {

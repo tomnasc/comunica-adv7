@@ -439,8 +439,6 @@ export default function RegularServicesPage() {
         try {
           console.log('Processando deadline do formulário:', formData.deadline);
           
-          // Abordagem simplificada: criar uma data a partir da string do formulário
-          // e garantir que NÃO tenha segundos
           if (formData.deadline.includes('T')) {
             // Extrair as partes da data e hora
             const [datePart, timePart] = formData.deadline.split('T');
@@ -456,20 +454,19 @@ export default function RegularServicesPage() {
             
             console.log('Componentes da data:', year, month, day, hour, minute);
             
-            // Criar uma data no fuso horário local com segundos zerados
-            // Mês em JavaScript é baseado em zero (0-11)
-            const localDate = new Date(year, month - 1, day, hour, minute, 0);
+            // Criar uma data usando UTC para evitar ajustes de fuso horário
+            const deadlineDate = new Date(Date.UTC(year, month - 1, day, hour, minute, 0));
             
-            if (isNaN(localDate.getTime())) {
-              console.error('Data inválida após parsing:', localDate);
+            if (isNaN(deadlineDate.getTime())) {
+              console.error('Data inválida após parsing:', deadlineDate);
               toast.error('Data de prazo inválida');
               return;
             }
             
-            console.log('Data local criada:', localDate);
+            console.log('Data UTC criada:', deadlineDate);
             
             // Converter para ISO string e remover os segundos
-            deadlineISO = localDate.toISOString().replace(/:\d{2}\.\d{3}Z$/, ':00.000Z');
+            deadlineISO = deadlineDate.toISOString().replace(/:\d{2}\.\d{3}Z$/, ':00.000Z');
             console.log('Deadline convertido para ISO sem segundos:', deadlineISO);
           } else {
             throw new Error('Formato de data não contém separador T');
