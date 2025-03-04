@@ -17,6 +17,31 @@ export default function ContentListPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [user, setUser] = useState<User | null>(null)
 
+  // Função para formatar a data sem problemas de fuso horário
+  const formatDate = (dateString: string) => {
+    // Extrair ano, mês e dia da string de data
+    const [year, month, day] = dateString.split('T')[0].split('-').map(Number)
+    
+    // Criar uma nova data usando os componentes extraídos
+    const date = new Date(year, month - 1, day)
+    
+    return date.toLocaleDateString('pt-BR')
+  }
+
+  // Função para formatar data e hora sem problemas de fuso horário
+  const formatDateTime = (dateTimeString: string) => {
+    // Criar uma data a partir da string ISO
+    const date = new Date(dateTimeString)
+    
+    // Ajustar para o fuso horário local
+    const localDate = new Date(
+      date.getTime() + date.getTimezoneOffset() * 60000
+    )
+    
+    // Formatar a data e hora no padrão brasileiro
+    return localDate.toLocaleString('pt-BR')
+  }
+
   useEffect(() => {
     const getUser = async () => {
       const { data: { user: authUser } } = await supabase.auth.getUser()
@@ -117,7 +142,7 @@ export default function ContentListPage() {
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <h3 className="text-lg font-medium text-gray-900">
-                            Culto: {new Date(content.service_schedules.date).toLocaleDateString('pt-BR')} - {content.service_schedules.time.split(':').slice(0, 2).join(':')}
+                            Culto: {formatDate(content.service_schedules.date)} - {content.service_schedules.time.split(':').slice(0, 2).join(':')}
                           </h3>
                           <p className="mt-2 text-sm text-gray-600">{content.content}</p>
                           
@@ -156,7 +181,7 @@ export default function ContentListPage() {
                       <div className="mt-2">
                         <div className="flex items-center text-sm text-gray-500">
                           <span>
-                            Enviado em: {new Date(content.created_at).toLocaleString('pt-BR')}
+                            Enviado em: {formatDateTime(content.created_at)}
                           </span>
                         </div>
                       </div>
