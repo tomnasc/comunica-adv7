@@ -288,27 +288,40 @@ export default function UsersPage() {
     if (!confirm('Tem certeza que deseja excluir este usuário?')) return
 
     try {
-      // Primeira etapa: excluir da tabela auth.users usando supabaseAdmin
-      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId)
+      // Verificar se o usuário existe antes de tentar excluir
+      const { data: userExists, error: checkError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', userId)
+        .single()
 
-      if (authError) {
-        console.error('Erro ao excluir usuário da autenticação:', authError)
-        toast.error(`Erro ao excluir usuário do sistema de autenticação: ${authError.message}`)
+      if (checkError || !userExists) {
+        console.error('Erro ao verificar usuário:', checkError)
+        toast.error('Usuário não encontrado no banco de dados')
         return
       }
 
-      // Segunda etapa: excluir da tabela public.users usando a função RPC
+      // Primeira etapa: excluir da tabela public.users usando a função RPC
       const { data, error: dbError } = await supabase.rpc('delete_user', {
         target_user_id: userId
       })
 
       if (dbError) {
         console.error('Erro ao excluir usuário do banco de dados:', dbError)
-        toast.error(`Usuário excluído da autenticação, mas erro ao excluir do banco de dados: ${dbError.message}`)
+        toast.error(`Erro ao excluir usuário do banco de dados: ${dbError.message}`)
         return
       }
 
-      toast.success('Usuário excluído com sucesso de ambos os sistemas!')
+      // Segunda etapa: excluir da tabela auth.users usando supabaseAdmin
+      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId)
+
+      if (authError) {
+        console.error('Erro ao excluir usuário da autenticação:', authError)
+        toast.error(`Usuário excluído do banco de dados, mas erro ao excluir da autenticação: ${authError.message}`)
+        // Continuar mesmo com erro na autenticação, pois o usuário já foi removido do banco
+      }
+
+      toast.success('Usuário excluído com sucesso!')
       setUsers(users.filter(user => user.id !== userId))
     } catch (error: any) {
       console.error('Erro ao excluir usuário:', error)
