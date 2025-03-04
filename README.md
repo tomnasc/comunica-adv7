@@ -1,4 +1,10 @@
-# Sistema de Comunicação ADV7
+# Comunica ADV7
+
+Sistema de gerenciamento para a Igreja Adventista do 7º Dia.
+
+## Última atualização
+
+Sistema atualizado com funcionalidades de gerenciamento de usuários e envio de emails.
 
 Este é um sistema de gerenciamento de comunicação para a Igreja Adventista do Sétimo Dia, desenvolvido com Next.js, React e Supabase.
 
