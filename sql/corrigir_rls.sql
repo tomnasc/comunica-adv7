@@ -16,7 +16,7 @@ BEGIN
     CREATE POLICY "Permitir leitura pelos próprios usuários" 
       ON public.users
       FOR SELECT 
-      USING (auth.uid() = id OR auth.jwt() -> 'role' = 'admin');
+      USING (auth.uid() = id OR auth.jwt() ->> 'role' = 'admin');
   END IF;
 
   -- Verifica se já existe uma política de atualização para usuários
@@ -28,7 +28,7 @@ BEGIN
     CREATE POLICY "Permitir atualização pelos próprios usuários" 
       ON public.users
       FOR UPDATE 
-      USING (auth.uid() = id OR auth.jwt() -> 'role' = 'admin');
+      USING (auth.uid() = id OR auth.jwt() ->> 'role' = 'admin');
   END IF;
 
   -- Política para administradores
@@ -40,7 +40,7 @@ BEGIN
     CREATE POLICY "Permitir administradores gerenciarem usuários" 
       ON public.users
       FOR ALL 
-      USING (auth.jwt() -> 'role' = 'admin');
+      USING (auth.jwt() ->> 'role' = 'admin');
   END IF;
 END
 $$;
