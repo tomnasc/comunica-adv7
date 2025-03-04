@@ -746,7 +746,12 @@ export default function RegularServicesPage() {
   }
 
   const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('pt-BR')
+    // Criar a data a partir da string, mas garantir que não haja ajuste de fuso horário
+    const [year, month, day] = date.split('-').map(Number);
+    const formattedDate = new Date(year, month - 1, day);
+    
+    // Formatar a data no padrão brasileiro
+    return formattedDate.toLocaleDateString('pt-BR');
   }
 
   const formatTime = (time: string) => {
@@ -768,6 +773,25 @@ export default function RegularServicesPage() {
       'closed': 'Fechado'
     }
     return statusMap[status] || status
+  }
+
+  const formatDeadline = (deadline: string) => {
+    // Criar a data a partir da string ISO
+    const deadlineDate = new Date(deadline);
+    
+    // Ajustar para o fuso horário local
+    const localDate = new Date(
+      deadlineDate.getTime() + deadlineDate.getTimezoneOffset() * 60000
+    );
+    
+    // Formatar a data e hora no padrão brasileiro
+    return localDate.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   }
 
   const totalPages = Math.ceil(filteredServices.length / ITEMS_PER_PAGE)
@@ -931,13 +955,7 @@ export default function RegularServicesPage() {
                         {formatTime(service.time)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(service.deadline).toLocaleString('pt-BR', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                        {formatDeadline(service.deadline)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
