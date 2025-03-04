@@ -1,7 +1,18 @@
+import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
-console.log('Usando cliente Supabase Admin centralizado')
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('Variáveis de ambiente não configuradas:', {
+    hasUrl: !!supabaseUrl,
+    hasServiceKey: !!supabaseServiceKey
+  })
+}
+
+console.log('Inicializando cliente Supabase com URL:', supabaseUrl)
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
 export async function POST() {
   try {

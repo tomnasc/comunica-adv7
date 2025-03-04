@@ -3,8 +3,20 @@
 import React, { useState, useEffect } from 'react'
 import { toast } from 'react-hot-toast'
 import { supabase } from '@/lib/supabaseClient'
-import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { createClient } from '@supabase/supabase-js'
 import type { User } from '@/types'
+
+// Cria cliente Supabase com a chave de serviço para operações administrativas
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+)
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
