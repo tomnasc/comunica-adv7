@@ -447,7 +447,9 @@ export default function ServiceInfoPage() {
                   <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
                     <div>
                       <h3 className="text-lg font-medium text-gray-900">
-                        {isRegular ? getServiceTypeLabel(nextService.type) : nextService.title}
+                        {isRegular 
+                          ? getServiceTypeLabel((nextService as ServiceSchedule).type) 
+                          : (nextService as SpecialService).title}
                       </h3>
                       <p className="mt-1 text-sm text-gray-500">
                         {formatDate(nextService.date)} às {nextService.time.substring(0, 5)}
@@ -458,10 +460,10 @@ export default function ServiceInfoPage() {
                     </span>
                   </div>
                   <div className="border-t border-gray-200 px-4 py-5 sm:px-6">
-                    {!isRegular && nextService.description && (
+                    {!isRegular && (nextService as SpecialService).description && (
                       <div className="mb-4 text-sm text-gray-700 whitespace-pre-wrap">
                         <h4 className="text-md font-medium text-gray-900 mb-2">Descrição:</h4>
-                        {nextService.description}
+                        {(nextService as SpecialService).description}
                       </div>
                     )}
                     
