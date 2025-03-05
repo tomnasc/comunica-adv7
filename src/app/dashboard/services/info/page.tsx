@@ -353,7 +353,7 @@ export default function ServiceInfoPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
-              <h1 className="text-xl font-semibold">Informações dos Cultos</h1>
+              <h1 className="text-xl font-semibold">Informações do Próximo Culto</h1>
             </div>
             <div className="flex items-center">
               <button
@@ -382,42 +382,95 @@ export default function ServiceInfoPage() {
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           <div className="bg-white p-4 rounded-lg shadow mb-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Sobre os Cultos Regulares</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Sobre o Próximo Culto</h3>
             <p className="text-sm text-gray-600">
-              Os cultos regulares são gerenciados automaticamente pelo sistema. Novos cultos são adicionados para as próximas 8 semanas e os cultos passados são marcados como fechados. 
-              Você pode atualizar manualmente os cultos clicando no botão "Atualizar Cultos" acima.
+              Esta página exibe informações sobre o próximo culto agendado, incluindo todos os conteúdos que foram adicionados.
+              Você pode atualizar as informações clicando no botão "Atualizar" acima.
             </p>
           </div>
 
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold mb-4">Cultos Regulares Agendados/Abertos</h2>
-            {regularServices.filter(service => ['open', 'scheduled'].includes(service.status)).length === 0 ? (
-              <p className="text-gray-500">Nenhum culto regular agendado ou aberto.</p>
-            ) : (
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                {regularServices
-                  .filter(service => ['open', 'scheduled'].includes(service.status))
-                  .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-                  .map(service => (
-                    <div key={service.id} className="bg-white shadow overflow-hidden rounded-lg">
-                      <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
-                        <div>
-                          <h3 className="text-lg font-medium text-gray-900">
-                            {getServiceTypeLabel(service.type)}
-                          </h3>
-                          <p className="mt-1 text-sm text-gray-500">
-                            {formatDate(service.date)} às {service.time.substring(0, 5)}
-                          </p>
-                        </div>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(service.status)}`}>
-                          {getStatusLabel(service.status)}
-                        </span>
+          {/* Próximo Culto Regular */}
+          {(() => {
+            // Encontrar o próximo culto regular
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const nextRegularService = regularServices
+              .filter(service => ['open', 'scheduled'].includes(service.status))
+              .filter(service => new Date(service.date) >= today)
+              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+            
+            // Encontrar o próximo culto especial
+            const nextSpecialService = specialServices
+              .filter(service => ['scheduled'].includes(service.status))
+              .filter(service => new Date(service.date) >= today)
+              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+            
+            // Determinar qual é o próximo culto (regular ou especial)
+            let nextService = null;
+            let isRegular = true;
+            
+            if (nextRegularService && nextSpecialService) {
+              // Se ambos existem, pegar o que ocorrerá primeiro
+              if (new Date(nextRegularService.date) <= new Date(nextSpecialService.date)) {
+                nextService = nextRegularService;
+                isRegular = true;
+              } else {
+                nextService = nextSpecialService;
+                isRegular = false;
+              }
+            } else if (nextRegularService) {
+              nextService = nextRegularService;
+              isRegular = true;
+            } else if (nextSpecialService) {
+              nextService = nextSpecialService;
+              isRegular = false;
+            }
+            
+            if (!nextService) {
+              return (
+                <div className="text-center py-8 bg-gray-50 rounded-lg">
+                  <h3 className="text-lg font-medium text-gray-900">Nenhum culto agendado</h3>
+                  <p className="text-gray-500">
+                    Não há cultos regulares ou especiais agendados para as próximas semanas.
+                  </p>
+                </div>
+              );
+            }
+            
+            return (
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold mb-4">
+                  {isRegular ? 'Próximo Culto Regular' : 'Próximo Culto Especial'}
+                </h2>
+                <div className="bg-white shadow overflow-hidden rounded-lg">
+                  <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900">
+                        {isRegular ? getServiceTypeLabel(nextService.type) : nextService.title}
+                      </h3>
+                      <p className="mt-1 text-sm text-gray-500">
+                        {formatDate(nextService.date)} às {nextService.time.substring(0, 5)}
+                      </p>
+                    </div>
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(nextService.status)}`}>
+                      {getStatusLabel(nextService.status)}
+                    </span>
+                  </div>
+                  <div className="border-t border-gray-200 px-4 py-5 sm:px-6">
+                    {!isRegular && nextService.description && (
+                      <div className="mb-4 text-sm text-gray-700 whitespace-pre-wrap">
+                        <h4 className="text-md font-medium text-gray-900 mb-2">Descrição:</h4>
+                        {nextService.description}
                       </div>
-                      <div className="border-t border-gray-200 px-4 py-5 sm:px-6">
+                    )}
+                    
+                    {isRegular && (
+                      <>
                         <h4 className="text-md font-medium text-gray-900 mb-2">Conteúdos:</h4>
-                        {contents[service.id] && contents[service.id].length > 0 ? (
+                        {contents[nextService.id] && contents[nextService.id].length > 0 ? (
                           <div className="space-y-4">
-                            {contents[service.id].map(content => (
+                            {contents[nextService.id].map(content => (
                               <div key={content.id} className="bg-gray-50 p-3 rounded-md">
                                 <div className="flex justify-between">
                                   <h5 className="font-medium">{content.department_name}</h5>
@@ -448,50 +501,15 @@ export default function ServiceInfoPage() {
                             ))}
                           </div>
                         ) : (
-                          <p className="text-sm text-gray-500">Nenhum conteúdo adicionado.</p>
+                          <p className="text-sm text-gray-500">Nenhum conteúdo adicionado para este culto.</p>
                         )}
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            )}
-          </div>
-
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold mb-4">Cultos Especiais</h2>
-            {specialServices.length === 0 ? (
-              <p className="text-gray-500">Nenhum culto especial agendado.</p>
-            ) : (
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                {specialServices.map(service => (
-                  <div key={service.id} className="bg-white shadow overflow-hidden rounded-lg">
-                    <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
-                      <div>
-                        <h3 className="text-lg font-medium text-gray-900">
-                          {service.title}
-                        </h3>
-                        <p className="mt-1 text-sm text-gray-500">
-                          {formatDate(service.date)} às {service.time.substring(0, 5)}
-                        </p>
-                      </div>
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(service.status)}`}>
-                        {getStatusLabel(service.status)}
-                      </span>
-                    </div>
-                    <div className="border-t border-gray-200 px-4 py-5 sm:px-6">
-                      {service.description ? (
-                        <div className="text-sm text-gray-700 whitespace-pre-wrap">
-                          {service.description}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-gray-500">Sem descrição.</p>
-                      )}
-                    </div>
+                      </>
+                    )}
                   </div>
-                ))}
+                </div>
               </div>
-            )}
-          </div>
+            );
+          })()}
         </div>
       </main>
     </div>
