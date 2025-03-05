@@ -53,12 +53,17 @@ export async function GET() {
     const bucketExists = buckets.some(bucket => bucket.name === 'attachments')
     
     if (!bucketExists) {
-      // Criar o bucket se não existir
-      const { error: createError } = await supabaseAdmin.storage.createBucket('attachments', {
-        public: true
-      })
-      
-      if (createError) {
+      try {
+        // Usar SQL direto para criar o bucket, evitando problemas de RLS
+        const { error: sqlError } = await supabaseAdmin.rpc('create_storage_bucket', {
+          bucket_name: 'attachments',
+          is_public: true
+        })
+        
+        if (sqlError) {
+          return NextResponse.json({ error: `Erro ao criar bucket via RPC: ${sqlError.message}` }, { status: 500 })
+        }
+      } catch (createError: any) {
         return NextResponse.json({ error: `Erro ao criar bucket: ${createError.message}` }, { status: 500 })
       }
     }

@@ -78,29 +78,17 @@ export default function FixAttachmentsPage() {
     try {
       setIsFixing(true)
       
-      // Verificar se o bucket existe
-      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets()
+      // Chamar a função RPC para criar o bucket
+      const { error } = await supabase.rpc('create_storage_bucket', {
+        bucket_name: 'attachments',
+        is_public: true
+      })
       
-      if (bucketsError) {
-        throw bucketsError
+      if (error) {
+        throw error
       }
       
-      const bucketExists = buckets.some(bucket => bucket.name === 'attachments')
-      
-      if (!bucketExists) {
-        // Criar o bucket
-        const { error: createError } = await supabase.storage.createBucket('attachments', {
-          public: true
-        })
-        
-        if (createError) {
-          throw createError
-        }
-        
-        toast.success('Bucket "attachments" criado com sucesso')
-      } else {
-        toast.success('Bucket "attachments" já existe')
-      }
+      toast.success('Bucket "attachments" criado com sucesso')
     } catch (error: any) {
       console.error('Erro ao criar bucket:', error)
       toast.error(`Erro ao criar bucket: ${error.message}`)
