@@ -147,7 +147,7 @@ export default function NewContentPage() {
               content_id: content.id,
               file_url: publicUrl,
               description: fileData.description,
-              filename: fileData.file.name
+              file_name: fileData.file.name
             })
 
           if (attachmentError) throw attachmentError
