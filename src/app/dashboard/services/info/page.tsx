@@ -172,7 +172,7 @@ export default function ServiceInfoPage() {
       
       const { data: contentData, error: contentError } = await supabase
         .from('department_contents')
-        .select('*, department:department_id(name)')
+        .select('*, department:department_id(name), user:department_id(name, department)')
         .in('service_id', serviceIds)
 
       if (contentError) {
@@ -191,7 +191,9 @@ export default function ServiceInfoPage() {
           }
           contentsByService[content.service_id].push({
             ...content,
-            department_name: content.department?.name
+            department_name: content.department?.name,
+            user_name: content.user?.name,
+            user_department: content.user?.department
           })
         })
       }
@@ -476,6 +478,10 @@ export default function ServiceInfoPage() {
                               <div key={content.id} className="bg-gray-50 p-3 rounded-md">
                                 <div className="flex justify-between">
                                   <h5 className="font-medium">{content.department_name}</h5>
+                                  <span className="text-sm text-gray-500">
+                                    {content.user_name && content.user_department && 
+                                      `Adicionado por: ${content.user_name} (${content.user_department})`}
+                                  </span>
                                 </div>
                                 <div className="mt-2 text-sm text-gray-700 whitespace-pre-wrap">
                                   {content.content}

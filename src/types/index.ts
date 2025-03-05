@@ -25,6 +25,8 @@ export type DepartmentContent = {
   content: string
   created_at: string
   updated_at: string
+  user_name?: string
+  user_department?: string
 }
 
 export type FileAttachment = {
