@@ -17,25 +17,68 @@ export async function uploadToMega(fileBuffer: Buffer, fileName: string): Promis
       throw new Error('Credenciais do Mega.io não configuradas')
     }
 
-    // Criar uma instância do Storage do Mega.io
-    const storage = await new Storage({
+    console.log(`Iniciando upload para o Mega.io: ${fileName} (${fileBuffer.length} bytes)`)
+    
+    // Criar uma instância do Storage do Mega.io com tratamento de erro melhorado
+    console.log('Autenticando no Mega.io...')
+    
+    // Criar a instância do Storage
+    const storage = new Storage({
       email: MEGA_EMAIL,
-      password: MEGA_PASSWORD
-    }).ready
-
-    // Fazer upload do arquivo
-    const uploadedFile = await storage.upload(fileName, fileBuffer).complete
-    console.log('Arquivo enviado para o Mega.io:', uploadedFile.name)
-
-    // Gerar link de compartilhamento
-    const link = await uploadedFile.link({
-      noKey: false // Incluir a chave de descriptografia no link
+      password: MEGA_PASSWORD,
+      autologin: false, // Desabilitar autologin para evitar problemas
+      keepalive: false // Desabilitar keepalive para evitar problemas
     })
+    
+    // Aguardar a autenticação
+    try {
+      await storage.ready
+      console.log('Autenticação bem-sucedida no Mega.io')
+    } catch (authError) {
+      console.error('Erro na autenticação do Mega.io:', authError)
+      throw new Error(`Falha na autenticação do Mega.io: ${authError instanceof Error ? authError.message : 'Erro desconhecido'}`)
+    }
 
+    console.log('Iniciando upload do arquivo...')
+    
+    // Fazer upload do arquivo com tratamento de erro melhorado
+    let uploadedFile
+    try {
+      uploadedFile = await storage.upload(fileName, fileBuffer).complete
+      console.log('Arquivo enviado para o Mega.io:', uploadedFile.name)
+    } catch (uploadError) {
+      console.error('Erro no upload para o Mega.io:', uploadError)
+      throw new Error(`Falha no upload para o Mega.io: ${uploadError instanceof Error ? uploadError.message : 'Erro desconhecido'}`)
+    }
+
+    // Gerar link de compartilhamento com tratamento de erro melhorado
+    console.log('Gerando link de compartilhamento...')
+    let link
+    try {
+      link = await uploadedFile.link({
+        noKey: false // Incluir a chave de descriptografia no link
+      })
+      console.log('Link gerado com sucesso:', link)
+    } catch (linkError) {
+      console.error('Erro ao gerar link de compartilhamento:', linkError)
+      throw new Error(`Falha ao gerar link de compartilhamento: ${linkError instanceof Error ? linkError.message : 'Erro desconhecido'}`)
+    }
+    
     return link
   } catch (error) {
     console.error('Erro ao fazer upload para o Mega.io:', error)
-    throw new Error(`Erro ao fazer upload para o Mega.io: ${error instanceof Error ? error.message : 'Erro desconhecido'}`)
+    
+    // Melhorar a mensagem de erro para incluir mais detalhes
+    let errorMessage = 'Erro desconhecido'
+    if (error instanceof Error) {
+      errorMessage = error.message
+    } else if (typeof error === 'string') {
+      errorMessage = error
+    } else if (error && typeof error === 'object') {
+      errorMessage = JSON.stringify(error)
+    }
+    
+    throw new Error(`Erro ao fazer upload para o Mega.io: ${errorMessage}`)
   }
 }
 
