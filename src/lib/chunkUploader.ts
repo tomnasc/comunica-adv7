@@ -98,11 +98,10 @@ async function uploadSingleFile(
     
     console.log(`Enviando chunk ${i + 1}/${totalChunks} (${chunk.size} bytes)`);
     
-    // Enviar o chunk para a API com credentials incluídas
+    // Enviar o chunk para a API
     const response = await fetch('/api/chunk-upload', {
       method: 'POST',
-      body: formData,
-      credentials: 'include' // Incluir cookies de autenticação
+      body: formData
     });
     
     if (!response.ok) {

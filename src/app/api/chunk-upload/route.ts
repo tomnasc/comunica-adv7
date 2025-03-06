@@ -1,5 +1,3 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
@@ -30,21 +28,6 @@ const tempStorage = new Map<string, Map<number, Buffer>>();
 export async function POST(request: NextRequest) {
   try {
     console.log('Iniciando processamento de chunk upload')
-    
-    // Inicializar o cliente Supabase com cookies para autenticação
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
-    
-    // Verificar autenticação do usuário
-    const { data: { session } } = await supabase.auth.getSession()
-    
-    if (!session) {
-      console.error('Erro de autenticação: Auth session missing!')
-      return NextResponse.json(
-        { error: 'Erro de autenticação: Auth session missing!' },
-        { status: 401 }
-      )
-    }
     
     // Processar o formulário multipart primeiro para obter os dados do arquivo
     const formData = await request.formData()
