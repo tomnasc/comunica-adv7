@@ -33,6 +33,21 @@ export async function POST(request: NextRequest) {
   try {
     console.log('Iniciando processamento de chunk upload')
     
+    // Inicializar o cliente Supabase com cookies para autenticação
+    const cookieStore = cookies()
+    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+    
+    // Verificar autenticação do usuário
+    const { data: { session } } = await supabase.auth.getSession()
+    
+    if (!session) {
+      console.error('Erro de autenticação: Auth session missing!')
+      return NextResponse.json(
+        { error: 'Erro de autenticação: Auth session missing!' },
+        { status: 401 }
+      )
+    }
+    
     // Processar o formulário multipart primeiro para obter os dados do arquivo
     const formData = await request.formData()
     
@@ -103,7 +118,6 @@ export async function POST(request: NextRequest) {
       const uniqueFileName = `large-files/${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`
       
       // Fazer upload para o Supabase Storage usando o cliente Admin
-      // Não precisamos verificar autenticação para o upload, pois estamos usando a chave de serviço
       console.log('Iniciando upload para o Supabase Storage usando a chave de serviço...')
       const { data, error } = await supabaseAdmin.storage
         .from('attachments')

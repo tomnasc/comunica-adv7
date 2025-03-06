@@ -50,8 +50,8 @@ export async function uploadFileInChunks(
       progress => {
         if (onProgress) {
           // Calcular o progresso total considerando todas as partes
-          const overallProgress = (i / numParts * 100) + (progress / numParts);
-          onProgress(overallProgress);
+          const partProgress = (i + progress / 100) / numParts;
+          onProgress(partProgress * 100);
         }
       }
     );
@@ -65,7 +65,7 @@ export async function uploadFileInChunks(
 }
 
 /**
- * Faz upload de um único arquivo (que já está dentro do limite de tamanho)
+ * Faz upload de um único arquivo em chunks
  * @param file Arquivo a ser enviado
  * @param onProgress Callback para acompanhar o progresso do upload
  * @returns URL do arquivo no Supabase Storage
@@ -74,12 +74,7 @@ async function uploadSingleFile(
   file: File,
   onProgress?: (progress: number) => void
 ): Promise<string> {
-  // Verificar se o arquivo é muito grande
-  if (file.size > MAX_FILE_SIZE) {
-    throw new Error(`O arquivo é muito grande. O tamanho máximo permitido é ${MAX_FILE_SIZE / (1024 * 1024)}MB.`);
-  }
-
-  // Gerar um ID único para o arquivo
+  // Gerar um ID único para este arquivo
   const fileId = Date.now().toString() + Math.random().toString(36).substring(2, 15);
   
   // Calcular o número total de chunks
@@ -103,10 +98,11 @@ async function uploadSingleFile(
     
     console.log(`Enviando chunk ${i + 1}/${totalChunks} (${chunk.size} bytes)`);
     
-    // Enviar o chunk para a API
+    // Enviar o chunk para a API com credentials incluídas
     const response = await fetch('/api/chunk-upload', {
       method: 'POST',
-      body: formData
+      body: formData,
+      credentials: 'include' // Incluir cookies de autenticação
     });
     
     if (!response.ok) {
