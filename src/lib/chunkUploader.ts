@@ -2,8 +2,11 @@
  * Utilitário para upload de arquivos em chunks
  */
 
-// Tamanho de cada chunk em bytes (2MB)
-const CHUNK_SIZE = 2 * 1024 * 1024;
+// Tamanho de cada chunk em bytes (1MB)
+const CHUNK_SIZE = 1 * 1024 * 1024;
+
+// Tamanho máximo do arquivo final (50MB)
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
 /**
  * Faz upload de um arquivo em chunks para evitar limites de tamanho
@@ -15,6 +18,11 @@ export async function uploadFileInChunks(
   file: File,
   onProgress?: (progress: number) => void
 ): Promise<string> {
+  // Verificar se o arquivo é muito grande
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(`O arquivo é muito grande. O tamanho máximo permitido é ${MAX_FILE_SIZE / (1024 * 1024)}MB.`);
+  }
+
   // Gerar um ID único para o arquivo
   const fileId = Date.now().toString() + Math.random().toString(36).substring(2, 15);
   

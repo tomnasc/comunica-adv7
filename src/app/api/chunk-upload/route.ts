@@ -11,6 +11,9 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60 // Máximo permitido para o plano hobby do Vercel
 
+// Tamanho máximo do arquivo final (50MB)
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
+
 // Inicializa o cliente Supabase Admin com a chave de serviço
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -30,11 +33,23 @@ export async function POST(request: NextRequest) {
   try {
     console.log('Iniciando processamento de chunk upload')
     
+    // Obter o cookie de autenticação
     const cookieStore = cookies()
+    
+    // Criar cliente Supabase com o cookie de autenticação
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
 
     // Verificar se o usuário está autenticado
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError) {
+      console.error('Erro de autenticação:', authError)
+      return NextResponse.json(
+        { error: `Erro de autenticação: ${authError.message}` },
+        { status: 401 }
+      )
+    }
+    
     if (!user) {
       console.log('Usuário não autenticado')
       return NextResponse.json(
@@ -42,6 +57,8 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       )
     }
+
+    console.log('Usuário autenticado:', user.email)
 
     // Processar o formulário multipart
     const formData = await request.formData()
@@ -80,10 +97,29 @@ export async function POST(request: NextRequest) {
       
       // Combinar todos os chunks
       const chunks = []
+      let totalSize = 0
+      
       for (let i = 0; i < Number(totalChunks); i++) {
         const chunkPath = join(fileDir, `chunk-${i}`)
         const chunkData = await import('fs').then(fs => fs.promises.readFile(chunkPath))
+        totalSize += chunkData.length
         chunks.push(chunkData)
+      }
+      
+      // Verificar se o tamanho total não excede o limite
+      if (totalSize > MAX_FILE_SIZE) {
+        console.error(`Arquivo muito grande: ${totalSize} bytes (limite: ${MAX_FILE_SIZE} bytes)`)
+        
+        // Limpar os arquivos temporários
+        for (let i = 0; i < Number(totalChunks); i++) {
+          const chunkPath = join(fileDir, `chunk-${i}`)
+          await import('fs').then(fs => fs.promises.unlink(chunkPath).catch(() => {}))
+        }
+        
+        return NextResponse.json(
+          { error: `O arquivo é muito grande. O tamanho máximo permitido é ${MAX_FILE_SIZE / (1024 * 1024)}MB.` },
+          { status: 413 }
+        )
       }
       
       const completeFileBuffer = Buffer.concat(chunks)
@@ -93,7 +129,7 @@ export async function POST(request: NextRequest) {
       const fileExt = fileName.toString().split('.').pop()
       const uniqueFileName = `large-files/${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`
       
-      // Fazer upload para o Supabase Storage
+      // Fazer upload para o Supabase Storage usando o cliente Admin
       console.log('Iniciando upload para o Supabase Storage...')
       const { data, error } = await supabaseAdmin.storage
         .from('attachments')
@@ -121,7 +157,7 @@ export async function POST(request: NextRequest) {
       // Limpar os arquivos temporários
       for (let i = 0; i < Number(totalChunks); i++) {
         const chunkPath = join(fileDir, `chunk-${i}`)
-        await import('fs').then(fs => fs.promises.unlink(chunkPath))
+        await import('fs').then(fs => fs.promises.unlink(chunkPath).catch(() => {}))
       }
       
       return NextResponse.json({
