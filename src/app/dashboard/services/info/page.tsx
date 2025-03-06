@@ -497,8 +497,43 @@ export default function ServiceInfoPage() {
                                             target="_blank" 
                                             rel="noopener noreferrer"
                                             className="text-xs text-indigo-600 hover:text-indigo-900"
+                                            onClick={(e) => {
+                                              // Se o URL não contiver um token, tentar gerar um novo
+                                              if (!attachment.file_url.includes('token=') && !attachment.file_url.includes('?')) {
+                                                e.preventDefault();
+                                                toast.loading('Gerando link de download...');
+                                                
+                                                // Extrair o caminho do arquivo
+                                                const urlParts = attachment.file_url.split('/');
+                                                const bucketIndex = urlParts.findIndex(part => part === 'attachments');
+                                                
+                                                if (bucketIndex !== -1 && bucketIndex < urlParts.length - 1) {
+                                                  const filePath = urlParts.slice(bucketIndex + 1).join('/');
+                                                  
+                                                  // Gerar URL assinada
+                                                  supabase.storage
+                                                    .from('attachments')
+                                                    .createSignedUrl(filePath, 3600) // 1 hora
+                                                    .then(({ data, error }) => {
+                                                      toast.dismiss();
+                                                      
+                                                      if (error || !data) {
+                                                        toast.error('Erro ao gerar link de download');
+                                                        console.error('Erro ao gerar URL assinada:', error);
+                                                        return;
+                                                      }
+                                                      
+                                                      // Abrir o link em uma nova aba
+                                                      window.open(data.signedUrl, '_blank');
+                                                    });
+                                                } else {
+                                                  toast.dismiss();
+                                                  toast.error('Erro ao processar o link do arquivo');
+                                                }
+                                              }
+                                            }}
                                           >
-                                            {attachment.filename || attachment.description}
+                                            {attachment.description || attachment.filename}
                                           </a>
                                         </li>
                                       ))}

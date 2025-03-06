@@ -137,15 +137,26 @@ export async function GET() {
           continue
         }
 
-        // Gerar URL público
-        const { data: publicUrl } = supabaseAdmin.storage
+        // Gerar URL assinada válida por 1 ano
+        const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin.storage
           .from('attachments')
-          .getPublicUrl(filePath)
+          .createSignedUrl(filePath, 31536000) // 1 ano em segundos
 
-        // Atualizar o registro com o novo URL
+        if (signedUrlError || !signedUrlData) {
+          results.errors++
+          results.details.push({
+            id: attachment.id,
+            status: 'error',
+            message: `Erro ao gerar URL assinada: ${signedUrlError?.message || 'Dados não retornados'}`,
+            file_name: attachment.file_name
+          })
+          continue
+        }
+
+        // Atualizar o registro com a URL assinada
         const { error: updateError } = await supabaseAdmin
           .from('file_attachments')
-          .update({ file_url: publicUrl.publicUrl })
+          .update({ file_url: signedUrlData.signedUrl })
           .eq('id', attachment.id)
 
         if (updateError) {
@@ -164,7 +175,7 @@ export async function GET() {
             message: 'URL atualizado com sucesso',
             file_name: attachment.file_name,
             old_url: attachment.file_url,
-            new_url: publicUrl.publicUrl
+            new_url: signedUrlData.signedUrl
           })
         }
       } catch (error: any) {

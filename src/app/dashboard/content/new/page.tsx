@@ -131,21 +131,28 @@ export default function NewContentPage() {
           const fileExt = fileData.file.name.split('.').pop()
           const fileName = `${content.id}/${Math.random()}.${fileExt}`
 
+          // Upload do arquivo
           const { error: uploadError } = await supabase.storage
             .from('attachments')
             .upload(fileName, fileData.file)
 
           if (uploadError) throw uploadError
 
-          const { data: { publicUrl } } = supabase.storage
+          // Gerar URL com token de acesso
+          const { data } = await supabase.storage
             .from('attachments')
-            .getPublicUrl(fileName)
+            .createSignedUrl(fileName, 31536000) // URL válida por 1 ano (em segundos)
 
+          if (!data) {
+            throw new Error('Erro ao gerar URL assinada para o arquivo')
+          }
+
+          // Inserir registro do anexo com URL assinada
           const { error: attachmentError } = await supabase
             .from('file_attachments')
             .insert({
               content_id: content.id,
-              file_url: publicUrl,
+              file_url: data.signedUrl,
               description: fileData.description,
               file_name: fileData.file.name
             })
