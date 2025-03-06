@@ -95,69 +95,109 @@ export default function NewContentPage() {
     setValue('files', newFiles)
   }
 
+  // Função para formatar a data corretamente
+  const formatDate = (dateString: string) => {
+    // Criar a data a partir dos componentes para evitar problemas de timezone
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    
+    // Criar uma nova data usando componentes específicos (sem timezone)
+    const formattedDate = new Date(year, month - 1, day);
+    return formattedDate.toLocaleDateString('pt-BR');
+  };
+
   const onSubmit = async (data: ContentForm) => {
     try {
       setIsLoading(true)
 
+      // Verificar se o usuário está autenticado
+      if (!user) {
+        throw new Error('Usuário não autenticado')
+      }
+
       // Verificar se o prazo do culto já passou
-      const service = services.find(s => s.id === data.service_id)
-      if (!service) {
-        toast.error('Culto não encontrado')
-        return
+      const selectedService = services.find(
+        (service) => service.id === data.service_id
+      )
+      
+      if (selectedService) {
+        const serviceDate = new Date(selectedService.date)
+        const now = new Date()
+        
+        if (serviceDate < now) {
+          throw new Error('O prazo para adicionar conteúdo a este culto já passou')
+        }
+      } else {
+        throw new Error('Serviço não encontrado')
       }
 
-      const deadline = new Date(service.deadline)
-      if (deadline < new Date()) {
-        toast.error('O prazo para envio de conteúdo para este culto já passou')
-        return
-      }
-
-      // Criar o conteúdo
-      const { data: content, error: contentError } = await supabase
+      // Inserir o conteúdo
+      const { data: contentData, error: contentError } = await supabase
         .from('department_contents')
         .insert({
           service_id: data.service_id,
-          department_id: user?.id,
+          department_id: user.id,
           content: data.content
         })
         .select()
-        .single()
 
-      if (contentError) throw contentError
+      if (contentError) {
+        console.error('Erro ao inserir conteúdo:', contentError);
+        throw new Error(`Erro ao inserir conteúdo: ${contentError.message}`)
+      }
+
+      if (!contentData || contentData.length === 0) {
+        throw new Error('Erro ao inserir conteúdo: nenhum dado retornado')
+      }
+
+      const contentId = contentData[0].id
 
       // Upload dos arquivos
       if (files.length > 0) {
         for (const fileData of files) {
           const fileExt = fileData.file.name.split('.').pop()
-          const fileName = `${content.id}/${Math.random()}.${fileExt}`
+          const fileName = `${contentId}/${Math.random()}.${fileExt}`
 
           // Upload do arquivo
           const { error: uploadError } = await supabase.storage
             .from('attachments')
             .upload(fileName, fileData.file)
 
-          if (uploadError) throw uploadError
+          if (uploadError) {
+            console.error('Erro ao fazer upload do arquivo:', uploadError);
+            throw new Error(`Erro ao fazer upload do arquivo: ${uploadError.message}`);
+          }
 
           // Gerar URL com token de acesso
-          const { data } = await supabase.storage
+          const { data, error: signedUrlError } = await supabase.storage
             .from('attachments')
             .createSignedUrl(fileName, 31536000) // URL válida por 1 ano (em segundos)
 
+          if (signedUrlError) {
+            console.error('Erro ao gerar URL assinada:', signedUrlError);
+            throw new Error(`Erro ao gerar URL assinada: ${signedUrlError.message}`);
+          }
+
           if (!data) {
-            throw new Error('Erro ao gerar URL assinada para o arquivo')
+            throw new Error('Erro ao gerar URL assinada para o arquivo');
           }
 
           // Inserir registro do anexo com URL assinada
           const { error: attachmentError } = await supabase
             .from('file_attachments')
             .insert({
-              content_id: content.id,
+              content_id: contentId,
               file_url: data.signedUrl,
               description: fileData.description,
-              file_name: fileData.file.name
+              filename: fileData.file.name
             })
 
-          if (attachmentError) throw attachmentError
+          if (attachmentError) {
+            console.error('Erro ao inserir anexo:', attachmentError);
+            throw new Error(`Erro ao inserir anexo: ${attachmentError.message}`);
+          }
         }
       }
 
@@ -201,7 +241,7 @@ export default function NewContentPage() {
                       <option value="">Selecione...</option>
                       {services.map((service) => (
                         <option key={service.id} value={service.id}>
-                          {new Date(service.date).toLocaleDateString('pt-BR')} - {service.time.split(':').slice(0, 2).join(':')} ({service.type})
+                          {formatDate(service.date)} - {service.time.split(':').slice(0, 2).join(':')} ({service.type})
                         </option>
                       ))}
                     </select>
