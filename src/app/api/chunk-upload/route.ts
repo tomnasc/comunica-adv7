@@ -2,9 +2,6 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
-import { existsSync } from 'fs'
 
 // Configuração correta para Next.js App Router
 export const runtime = 'nodejs'
@@ -26,8 +23,9 @@ const supabaseAdmin = createClient(
   }
 )
 
-// Diretório temporário para armazenar os chunks
-const TEMP_DIR = join(process.cwd(), 'tmp', 'uploads')
+// Armazenamento temporário em memória para os chunks
+// Chave: fileId, Valor: Map de chunkIndex para Buffer
+const tempStorage = new Map<string, Map<number, Buffer>>();
 
 export async function POST(request: NextRequest) {
   try {
@@ -66,43 +64,56 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`Recebido chunk ${chunkIndex} de ${totalChunks} para o arquivo ${fileName}`)
+    const chunkIndexNum = Number(chunkIndex);
+    const totalChunksNum = Number(totalChunks);
+
+    console.log(`Recebido chunk ${chunkIndexNum} de ${totalChunksNum} para o arquivo ${fileName}`)
     
-    // Criar diretório temporário se não existir
-    const fileDir = join(TEMP_DIR, fileId.toString())
-    if (!existsSync(fileDir)) {
-      await mkdir(fileDir, { recursive: true })
+    // Armazenar o chunk na memória
+    if (!tempStorage.has(fileId.toString())) {
+      tempStorage.set(fileId.toString(), new Map<number, Buffer>());
     }
     
-    // Salvar o chunk no diretório temporário
-    const chunkPath = join(fileDir, `chunk-${chunkIndex}`)
-    const buffer = Buffer.from(await chunk.arrayBuffer())
-    await writeFile(chunkPath, buffer)
+    const fileChunks = tempStorage.get(fileId.toString())!;
+    const buffer = Buffer.from(await chunk.arrayBuffer());
+    fileChunks.set(chunkIndexNum, buffer);
     
     // Se for o último chunk, combinar todos os chunks e fazer upload para o Supabase
-    if (Number(chunkIndex) === Number(totalChunks) - 1) {
+    if (chunkIndexNum === totalChunksNum - 1) {
       console.log(`Recebido último chunk para ${fileName}, combinando...`)
       
-      // Combinar todos os chunks
-      const chunks = []
-      let totalSize = 0
+      // Verificar se temos todos os chunks
+      if (fileChunks.size !== totalChunksNum) {
+        console.error(`Faltam chunks: recebidos ${fileChunks.size} de ${totalChunksNum}`);
+        return NextResponse.json(
+          { error: `Faltam chunks: recebidos ${fileChunks.size} de ${totalChunksNum}` },
+          { status: 400 }
+        );
+      }
       
-      for (let i = 0; i < Number(totalChunks); i++) {
-        const chunkPath = join(fileDir, `chunk-${i}`)
-        const chunkData = await import('fs').then(fs => fs.promises.readFile(chunkPath))
-        totalSize += chunkData.length
-        chunks.push(chunkData)
+      // Combinar todos os chunks
+      const chunks = [];
+      let totalSize = 0;
+      
+      for (let i = 0; i < totalChunksNum; i++) {
+        const chunkData = fileChunks.get(i);
+        if (!chunkData) {
+          console.error(`Chunk ${i} não encontrado`);
+          return NextResponse.json(
+            { error: `Chunk ${i} não encontrado` },
+            { status: 400 }
+          );
+        }
+        totalSize += chunkData.length;
+        chunks.push(chunkData);
       }
       
       // Verificar se o tamanho total não excede o limite
       if (totalSize > MAX_FILE_SIZE) {
         console.error(`Arquivo muito grande: ${totalSize} bytes (limite: ${MAX_FILE_SIZE} bytes)`)
         
-        // Limpar os arquivos temporários
-        for (let i = 0; i < Number(totalChunks); i++) {
-          const chunkPath = join(fileDir, `chunk-${i}`)
-          await import('fs').then(fs => fs.promises.unlink(chunkPath).catch(() => {}))
-        }
+        // Limpar os chunks da memória
+        tempStorage.delete(fileId.toString());
         
         return NextResponse.json(
           { error: `O arquivo é muito grande. O tamanho máximo permitido é ${MAX_FILE_SIZE / (1024 * 1024)}MB.` },
@@ -110,43 +121,40 @@ export async function POST(request: NextRequest) {
         )
       }
       
-      const completeFileBuffer = Buffer.concat(chunks)
-      console.log(`Arquivo combinado: ${fileName}, tamanho: ${completeFileBuffer.length} bytes`)
+      const completeFileBuffer = Buffer.concat(chunks);
+      console.log(`Arquivo combinado: ${fileName}, tamanho: ${completeFileBuffer.length} bytes`);
       
       // Gerar um nome único para o arquivo
-      const fileExt = fileName.toString().split('.').pop()
-      const uniqueFileName = `large-files/${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`
+      const fileExt = fileName.toString().split('.').pop();
+      const uniqueFileName = `large-files/${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
       
       // Fazer upload para o Supabase Storage usando o cliente Admin
-      console.log('Iniciando upload para o Supabase Storage usando a chave de serviço...')
+      console.log('Iniciando upload para o Supabase Storage usando a chave de serviço...');
       const { data, error } = await supabaseAdmin.storage
         .from('attachments')
         .upload(uniqueFileName, completeFileBuffer, {
           contentType: fileType?.toString() || 'application/octet-stream',
           cacheControl: '3600',
           upsert: false
-        })
+        });
       
       if (error) {
-        console.error('Erro ao fazer upload para o Supabase Storage:', error)
+        console.error('Erro ao fazer upload para o Supabase Storage:', error);
         return NextResponse.json(
           { error: `Erro ao fazer upload: ${error.message}` },
           { status: 500 }
-        )
+        );
       }
       
       // Gerar URL pública para o arquivo
       const { data: { publicUrl } } = supabaseAdmin.storage
         .from('attachments')
-        .getPublicUrl(uniqueFileName)
+        .getPublicUrl(uniqueFileName);
       
-      console.log('Upload para o Supabase Storage concluído com sucesso:', publicUrl)
+      console.log('Upload para o Supabase Storage concluído com sucesso:', publicUrl);
       
-      // Limpar os arquivos temporários
-      for (let i = 0; i < Number(totalChunks); i++) {
-        const chunkPath = join(fileDir, `chunk-${i}`)
-        await import('fs').then(fs => fs.promises.unlink(chunkPath).catch(() => {}))
-      }
+      // Limpar os chunks da memória
+      tempStorage.delete(fileId.toString());
       
       return NextResponse.json({
         success: true,
@@ -154,7 +162,7 @@ export async function POST(request: NextRequest) {
         fileName: fileName,
         fileSize: completeFileBuffer.length,
         isComplete: true
-      })
+      });
     }
     
     // Se não for o último chunk, retornar sucesso parcial
@@ -163,28 +171,28 @@ export async function POST(request: NextRequest) {
       chunkIndex,
       totalChunks,
       isComplete: false
-    })
+    });
     
   } catch (error) {
-    console.error('Erro ao processar chunk upload:', error)
+    console.error('Erro ao processar chunk upload:', error);
     
     // Melhorar a mensagem de erro
-    let errorMessage = 'Erro interno do servidor'
+    let errorMessage = 'Erro interno do servidor';
     if (error instanceof Error) {
-      errorMessage = error.message
+      errorMessage = error.message;
     } else if (typeof error === 'string') {
-      errorMessage = error
+      errorMessage = error;
     } else if (error && typeof error === 'object') {
       try {
-        errorMessage = JSON.stringify(error)
+        errorMessage = JSON.stringify(error);
       } catch (e) {
-        errorMessage = 'Erro não serializável'
+        errorMessage = 'Erro não serializável';
       }
     }
     
     return NextResponse.json(
       { error: errorMessage },
       { status: 500 }
-    )
+    );
   }
 } 
