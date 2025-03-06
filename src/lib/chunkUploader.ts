@@ -12,9 +12,65 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024;
  * Faz upload de um arquivo em chunks para evitar limites de tamanho
  * @param file Arquivo a ser enviado
  * @param onProgress Callback para acompanhar o progresso do upload
- * @returns URL do arquivo no Supabase Storage
+ * @returns URL do arquivo no Supabase Storage ou array de URLs se o arquivo for dividido
  */
 export async function uploadFileInChunks(
+  file: File,
+  onProgress?: (progress: number) => void
+): Promise<string | string[]> {
+  // Se o arquivo for menor que o limite, fazer upload normalmente
+  if (file.size <= MAX_FILE_SIZE) {
+    return uploadSingleFile(file, onProgress);
+  }
+  
+  // Para arquivos maiores que o limite, dividir em partes
+  console.log(`Arquivo muito grande (${file.size} bytes), dividindo em múltiplas partes...`);
+  
+  // Calcular quantas partes serão necessárias
+  const numParts = Math.ceil(file.size / MAX_FILE_SIZE);
+  console.log(`Dividindo em ${numParts} partes de até 50MB cada`);
+  
+  const fileUrls: string[] = [];
+  
+  // Fazer upload de cada parte
+  for (let i = 0; i < numParts; i++) {
+    const start = i * MAX_FILE_SIZE;
+    const end = Math.min(file.size, start + MAX_FILE_SIZE);
+    
+    // Criar um novo arquivo para esta parte
+    const partBlob = file.slice(start, end);
+    const partName = `${file.name}.parte${i+1}de${numParts}`;
+    const partFile = new File([partBlob], partName, { type: file.type });
+    
+    console.log(`Enviando parte ${i+1}/${numParts}: ${partName} (${partFile.size} bytes)`);
+    
+    // Fazer upload desta parte
+    const partUrl = await uploadSingleFile(
+      partFile,
+      progress => {
+        if (onProgress) {
+          // Calcular o progresso total considerando todas as partes
+          const overallProgress = (i / numParts * 100) + (progress / numParts);
+          onProgress(overallProgress);
+        }
+      }
+    );
+    
+    fileUrls.push(partUrl);
+    console.log(`Parte ${i+1}/${numParts} enviada com sucesso: ${partUrl}`);
+  }
+  
+  console.log(`Todas as ${numParts} partes enviadas com sucesso`);
+  return fileUrls;
+}
+
+/**
+ * Faz upload de um único arquivo (que já está dentro do limite de tamanho)
+ * @param file Arquivo a ser enviado
+ * @param onProgress Callback para acompanhar o progresso do upload
+ * @returns URL do arquivo no Supabase Storage
+ */
+async function uploadSingleFile(
   file: File,
   onProgress?: (progress: number) => void
 ): Promise<string> {

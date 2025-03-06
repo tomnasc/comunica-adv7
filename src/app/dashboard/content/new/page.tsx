@@ -176,13 +176,42 @@ export default function NewContentPage() {
               setIsSubmitting(true);
               
               // Fazer upload em chunks
-              fileUrl = await uploadFileInChunks(fileData.file, (progress) => {
+              const result = await uploadFileInChunks(fileData.file, (progress) => {
                 console.log(`Progresso do upload: ${progress.toFixed(2)}%`);
                 // Aqui poderia atualizar uma barra de progresso na UI
               });
               
-              isExternalLink = false;
-              console.log('Arquivo grande enviado com sucesso:', fileUrl);
+              // Verificar se o resultado é uma string (um arquivo) ou um array (múltiplas partes)
+              if (Array.isArray(result)) {
+                // Se for um array, o arquivo foi dividido em múltiplas partes
+                // Usar a primeira URL como principal e adicionar informações sobre as partes
+                fileUrl = result[0];
+                isExternalLink = false;
+                
+                // Adicionar informação sobre as partes no campo de descrição
+                const partesInfo = `Arquivo dividido em ${result.length} partes devido ao tamanho.\n`;
+                const listaPartes = result.map((url, idx) => `Parte ${idx + 1}: ${url}`).join('\n');
+                
+                // Obter o índice atual do arquivo na lista de arquivos
+                const currentFileIndex = files.findIndex(f => f.file === fileData.file);
+                
+                // Atualizar a descrição do arquivo
+                if (currentFileIndex !== -1) {
+                  const filesUpdated = [...files];
+                  filesUpdated[currentFileIndex] = {
+                    ...filesUpdated[currentFileIndex],
+                    description: partesInfo + listaPartes + '\n\n' + filesUpdated[currentFileIndex].description
+                  };
+                  setFiles(filesUpdated);
+                }
+                
+                console.log(`Arquivo grande dividido em ${result.length} partes e enviado com sucesso`);
+              } else {
+                // Se for uma string, é apenas um arquivo
+                fileUrl = result;
+                isExternalLink = false;
+                console.log('Arquivo grande enviado com sucesso:', fileUrl);
+              }
             } catch (error) {
               console.error('Erro ao fazer upload do arquivo grande:', error);
               throw new Error(`Erro ao fazer upload do arquivo grande: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
