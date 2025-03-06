@@ -3,6 +3,10 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const maxDuration = 10 // 10 segundos é suficiente para esta operação
+
 // Inicializa o cliente Supabase Admin com a chave de serviço
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

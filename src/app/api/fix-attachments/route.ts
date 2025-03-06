@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60 // Máximo permitido para o plano hobby do Vercel
+
 interface AttachmentResult {
   id: string | number;
   status: string;

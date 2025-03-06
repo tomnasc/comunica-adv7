@@ -3,9 +3,10 @@ import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { uploadToMega } from '@/lib/megaService'
 
-// Nova forma de configurar rotas de API no Next.js 14
-export const dynamic = 'force-dynamic';
-export const maxDuration = 300; // 5 minutos para uploads grandes
+// Configuração correta para Next.js App Router
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60 // Máximo permitido para o plano hobby do Vercel
 
 export async function POST(request: NextRequest) {
   try {

@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server'
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const maxDuration = 10 // 10 segundos é suficiente para esta operação
+
 export async function GET() {
   // Criar um PDF simples com uma mensagem de erro
   const pdfContent = `

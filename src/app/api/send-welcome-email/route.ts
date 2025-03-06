@@ -3,6 +3,10 @@ import { NextResponse } from 'next/server'
 import { getWelcomeEmailTemplate } from './email-template'
 import nodemailer from 'nodemailer'
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const maxDuration = 10 // 10 segundos é suficiente para esta operação
+
 // Inicializa o cliente Supabase com a chave de serviço
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
