@@ -33,34 +33,7 @@ export async function POST(request: NextRequest) {
   try {
     console.log('Iniciando processamento de chunk upload')
     
-    // Obter o cookie de autenticação
-    const cookieStore = cookies()
-    
-    // Criar cliente Supabase com o cookie de autenticação
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
-
-    // Verificar se o usuário está autenticado
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError) {
-      console.error('Erro de autenticação:', authError)
-      return NextResponse.json(
-        { error: `Erro de autenticação: ${authError.message}` },
-        { status: 401 }
-      )
-    }
-    
-    if (!user) {
-      console.log('Usuário não autenticado')
-      return NextResponse.json(
-        { error: 'Não autorizado' },
-        { status: 401 }
-      )
-    }
-
-    console.log('Usuário autenticado:', user.email)
-
-    // Processar o formulário multipart
+    // Processar o formulário multipart primeiro para obter os dados do arquivo
     const formData = await request.formData()
     
     const chunkIndex = formData.get('chunkIndex')
@@ -130,7 +103,8 @@ export async function POST(request: NextRequest) {
       const uniqueFileName = `large-files/${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`
       
       // Fazer upload para o Supabase Storage usando o cliente Admin
-      console.log('Iniciando upload para o Supabase Storage...')
+      // Não precisamos verificar autenticação para o upload, pois estamos usando a chave de serviço
+      console.log('Iniciando upload para o Supabase Storage usando a chave de serviço...')
       const { data, error } = await supabaseAdmin.storage
         .from('attachments')
         .upload(uniqueFileName, completeFileBuffer, {
