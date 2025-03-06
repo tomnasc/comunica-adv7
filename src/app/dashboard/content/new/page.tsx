@@ -56,10 +56,13 @@ export default function NewContentPage() {
     }
 
     const getServices = async () => {
+      // Obter a data atual no formato ISO sem o componente de tempo
+      const today = new Date().toISOString().split('T')[0];
+      
       const { data, error } = await supabase
         .from('service_schedules')
         .select('*')
-        .gte('date', new Date().toISOString())
+        .gte('date', today)
         .order('date', { ascending: true })
 
       if (error) {
@@ -97,15 +100,16 @@ export default function NewContentPage() {
 
   // Função para formatar a data corretamente
   const formatDate = (dateString: string) => {
-    // Criar a data a partir dos componentes para evitar problemas de timezone
-    const date = new Date(dateString);
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
+    // Usar o formato ISO para garantir que a data seja interpretada corretamente
+    // Formato: YYYY-MM-DDT00:00:00 para evitar problemas de timezone
+    const isoDate = dateString.split('T')[0] + 'T00:00:00';
+    const date = new Date(isoDate);
     
-    // Criar uma nova data usando componentes específicos (sem timezone)
-    const formattedDate = new Date(year, month - 1, day);
-    return formattedDate.toLocaleDateString('pt-BR');
+    // Ajustar para o fuso horário local
+    const localDate = new Date(date.getTime() + date.getTimezoneOffset() * 60000);
+    
+    // Formatar para o padrão brasileiro
+    return localDate.toLocaleDateString('pt-BR');
   };
 
   const onSubmit = async (data: ContentForm) => {

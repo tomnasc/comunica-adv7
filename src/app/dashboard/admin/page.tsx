@@ -103,30 +103,6 @@ export default function AdminPage() {
             </button>
           </div>
         </div>
-        
-        <div className="bg-white shadow-md rounded-lg overflow-hidden">
-          <div className="p-4 border-b">
-            <h2 className="text-xl font-semibold">Corrigir Anexos</h2>
-            <p className="text-sm text-gray-500">
-              Verificar e corrigir URLs de anexos existentes
-            </p>
-          </div>
-          <div className="p-4">
-            <p className="text-sm text-gray-500 mb-4">
-              Se você estiver enfrentando problemas com anexos existentes, clique no botão abaixo para verificar e corrigir as URLs.
-            </p>
-          </div>
-          <div className="p-4 bg-gray-50">
-            <a 
-              href="/api/fix-attachments"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 inline-block"
-            >
-              Verificar e Corrigir Anexos
-            </a>
-          </div>
-        </div>
       </div>
     </div>
   )
