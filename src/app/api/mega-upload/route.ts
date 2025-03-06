@@ -3,11 +3,9 @@ import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { uploadToMega } from '@/lib/megaService'
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-}
+// Nova forma de configurar rotas de API no Next.js 14
+export const dynamic = 'force-dynamic';
+export const maxDuration = 300; // 5 minutos para uploads grandes
 
 export async function POST(request: NextRequest) {
   try {
