@@ -162,36 +162,36 @@ export default function NewContentPage() {
       if (files.length > 0) {
         for (const fileData of files) {
           // Verificar o tamanho do arquivo
-          const isLargeFile = fileData.file.size > 50 * 1024 * 1024; // Maior que 50MB
+          const isLargeFile = fileData.file.size > 5 * 1024 * 1024; // Maior que 5MB
           let fileUrl = '';
           let isExternalLink = false;
 
           if (isLargeFile) {
-            // Para arquivos grandes, fazer upload para o Mega.io
+            console.log('Arquivo grande detectado, usando API de large-file-upload');
             try {
               // Criar um FormData para enviar o arquivo
               const formData = new FormData();
               formData.append('file', fileData.file);
 
-              // Enviar para a API de upload do Mega.io
-              const response = await fetch('/api/mega-upload', {
+              // Enviar para a API de upload de arquivos grandes
+              const response = await fetch('/api/large-file-upload', {
                 method: 'POST',
                 body: formData
               });
 
               if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || 'Erro ao fazer upload para o Mega.io');
+                throw new Error(errorData.error || 'Erro ao fazer upload do arquivo grande');
               }
 
               const result = await response.json();
-              fileUrl = result.megaLink;
-              isExternalLink = true;
+              fileUrl = result.fileUrl;
+              isExternalLink = false;
               
-              console.log('Arquivo grande enviado para o Mega.io:', fileUrl);
+              console.log('Arquivo grande enviado com sucesso:', fileUrl);
             } catch (error) {
-              console.error('Erro ao fazer upload para o Mega.io:', error);
-              throw new Error(`Erro ao fazer upload para o Mega.io: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+              console.error('Erro ao fazer upload do arquivo grande:', error);
+              throw new Error(`Erro ao fazer upload do arquivo grande: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
             }
           } else {
             // Para arquivos pequenos, continuar usando o Supabase
