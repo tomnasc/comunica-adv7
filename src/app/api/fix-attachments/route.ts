@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { cookies } from 'next/headers'
 
 interface AttachmentResult {
   id: string | number;
@@ -20,20 +21,47 @@ interface ProcessResults {
 
 export async function GET() {
   try {
+    // Obter cookies para autenticação
+    const cookieStore = cookies()
+    
     // Inicializar o cliente Supabase com a chave de serviço para ter acesso total
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-      process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+      process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+      {
+        auth: {
+          persistSession: false
+        }
+      }
+    )
+    
+    // Inicializar cliente Supabase com cookies para autenticação do usuário
+    const supabaseClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+      {
+        auth: {
+          persistSession: true,
+          detectSessionInUrl: false,
+          autoRefreshToken: true,
+          storageKey: 'supabase-auth-token'
+        },
+        global: {
+          headers: {
+            cookie: cookieStore.toString()
+          }
+        }
+      }
     )
 
-    // Verificar autenticação
-    const { data: { user } } = await supabaseAdmin.auth.getUser()
+    // Verificar autenticação usando o cliente com cookies
+    const { data: { user } } = await supabaseClient.auth.getUser()
     if (!user) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     // Verificar se o usuário é administrador
-    const { data: userData, error: userError } = await supabaseAdmin
+    const { data: userData, error: userError } = await supabaseClient
       .from('users')
       .select('role')
       .eq('id', user.id)
@@ -41,31 +69,6 @@ export async function GET() {
 
     if (userError || userData.role !== 'admin') {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
-    }
-
-    // Verificar se o bucket existe
-    const { data: buckets, error: bucketsError } = await supabaseAdmin.storage.listBuckets()
-    
-    if (bucketsError) {
-      return NextResponse.json({ error: `Erro ao listar buckets: ${bucketsError.message}` }, { status: 500 })
-    }
-    
-    const bucketExists = buckets.some(bucket => bucket.name === 'attachments')
-    
-    if (!bucketExists) {
-      try {
-        // Usar SQL direto para criar o bucket, evitando problemas de RLS
-        const { error: sqlError } = await supabaseAdmin.rpc('create_storage_bucket', {
-          bucket_name: 'attachments',
-          is_public: true
-        })
-        
-        if (sqlError) {
-          return NextResponse.json({ error: `Erro ao criar bucket via RPC: ${sqlError.message}` }, { status: 500 })
-        }
-      } catch (createError: any) {
-        return NextResponse.json({ error: `Erro ao criar bucket: ${createError.message}` }, { status: 500 })
-      }
     }
 
     // Obter todos os anexos
@@ -85,78 +88,69 @@ export async function GET() {
       details: []
     }
 
+    // Verificar se o bucket existe e criar se necessário
+    try {
+      // Verificar se o bucket existe
+      const { data: buckets, error: bucketsError } = await supabaseAdmin.storage.listBuckets()
+      
+      if (bucketsError) {
+        return NextResponse.json({ error: `Erro ao listar buckets: ${bucketsError.message}` }, { status: 500 })
+      }
+      
+      const bucketExists = buckets.some(bucket => bucket.name === 'attachments')
+      
+      if (!bucketExists) {
+        // Criar o bucket diretamente no banco de dados
+        const { error: createError } = await supabaseAdmin.rpc('admin_create_bucket', {
+          bucket_name: 'attachments',
+          is_public: true
+        })
+        
+        if (createError) {
+          return NextResponse.json({ 
+            error: `Erro ao criar bucket: ${createError.message}`,
+            details: 'Execute o script SQL verificar_e_criar_bucket.sql no SQL Editor do Supabase'
+          }, { status: 500 })
+        }
+      }
+    } catch (error: any) {
+      console.error('Erro ao verificar/criar bucket:', error)
+      // Continuar mesmo com erro para tentar corrigir os anexos existentes
+    }
+
     // Processar cada anexo
     for (const attachment of attachments) {
       try {
-        // Extrair o caminho do arquivo do URL atual
-        let filePath = ''
+        // Verificar se o URL já é válido
+        let isUrlValid = false
         
-        if (attachment.file_url) {
-          // Extrair o caminho do arquivo do URL atual
-          const urlParts = attachment.file_url.split('/')
-          const bucketIndex = urlParts.findIndex((part: string) => part === 'attachments')
-          
-          if (bucketIndex !== -1 && bucketIndex < urlParts.length - 1) {
-            filePath = urlParts.slice(bucketIndex + 1).join('/')
-          } else {
-            // Se não conseguir extrair o caminho, usar o nome do arquivo
-            filePath = attachment.file_name
-          }
-        } else {
-          // Se não houver URL, usar o nome do arquivo
-          filePath = attachment.file_name
+        try {
+          const response = await fetch(attachment.file_url, { method: 'HEAD' })
+          isUrlValid = response.ok
+        } catch (e) {
+          isUrlValid = false
         }
-
-        // Verificar se o arquivo existe no bucket
-        const { data: fileExists, error: fileExistsError } = await supabaseAdmin.storage
-          .from('attachments')
-          .list('', {
-            search: filePath
-          })
-
-        if (fileExistsError) {
-          results.errors++
-          results.details.push({
-            id: attachment.id,
-            status: 'error',
-            message: `Erro ao verificar arquivo: ${fileExistsError.message}`,
-            file_name: attachment.file_name
-          })
-          continue
-        }
-
-        // Se o arquivo não existir no bucket, pular
-        if (!fileExists || fileExists.length === 0) {
+        
+        if (isUrlValid) {
           results.skipped++
           results.details.push({
             id: attachment.id,
             status: 'skipped',
-            message: 'Arquivo não encontrado no bucket',
-            file_name: attachment.file_name
+            message: 'URL já é válido',
+            file_name: attachment.filename || 'desconhecido'
           })
           continue
         }
-
-        // Gerar URL assinada válida por 1 ano
-        const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin.storage
-          .from('attachments')
-          .createSignedUrl(filePath, 31536000) // 1 ano em segundos
-
-        if (signedUrlError || !signedUrlData) {
-          results.errors++
-          results.details.push({
-            id: attachment.id,
-            status: 'error',
-            message: `Erro ao gerar URL assinada: ${signedUrlError?.message || 'Dados não retornados'}`,
-            file_name: attachment.file_name
-          })
-          continue
-        }
-
-        // Atualizar o registro com a URL assinada
+        
+        // Atualizar o registro com um URL de fallback
+        const fallbackUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://comunica-adv7.vercel.app'}/api/fallback-file`
+        
         const { error: updateError } = await supabaseAdmin
           .from('file_attachments')
-          .update({ file_url: signedUrlData.signedUrl })
+          .update({ 
+            file_url: fallbackUrl,
+            status: 'missing'
+          })
           .eq('id', attachment.id)
 
         if (updateError) {
@@ -165,17 +159,17 @@ export async function GET() {
             id: attachment.id,
             status: 'error',
             message: `Erro ao atualizar URL: ${updateError.message}`,
-            file_name: attachment.file_name
+            file_name: attachment.filename || 'desconhecido'
           })
         } else {
           results.updated++
           results.details.push({
             id: attachment.id,
             status: 'updated',
-            message: 'URL atualizado com sucesso',
-            file_name: attachment.file_name,
+            message: 'URL atualizado para fallback',
+            file_name: attachment.filename || 'desconhecido',
             old_url: attachment.file_url,
-            new_url: signedUrlData.signedUrl
+            new_url: fallbackUrl
           })
         }
       } catch (error: any) {
@@ -184,7 +178,7 @@ export async function GET() {
           id: attachment.id,
           status: 'error',
           message: `Erro inesperado: ${error.message}`,
-          file_name: attachment.file_name
+          file_name: attachment.filename || 'desconhecido'
         })
       }
     }

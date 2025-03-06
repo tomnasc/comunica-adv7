@@ -498,39 +498,33 @@ export default function ServiceInfoPage() {
                                             rel="noopener noreferrer"
                                             className="text-xs text-indigo-600 hover:text-indigo-900"
                                             onClick={(e) => {
-                                              // Se o URL não contiver um token, tentar gerar um novo
-                                              if (!attachment.file_url.includes('token=') && !attachment.file_url.includes('?')) {
-                                                e.preventDefault();
-                                                toast.loading('Gerando link de download...');
-                                                
-                                                // Extrair o caminho do arquivo
-                                                const urlParts = attachment.file_url.split('/');
-                                                const bucketIndex = urlParts.findIndex(part => part === 'attachments');
-                                                
-                                                if (bucketIndex !== -1 && bucketIndex < urlParts.length - 1) {
-                                                  const filePath = urlParts.slice(bucketIndex + 1).join('/');
-                                                  
-                                                  // Gerar URL assinada
-                                                  supabase.storage
-                                                    .from('attachments')
-                                                    .createSignedUrl(filePath, 3600) // 1 hora
-                                                    .then(({ data, error }) => {
-                                                      toast.dismiss();
-                                                      
-                                                      if (error || !data) {
-                                                        toast.error('Erro ao gerar link de download');
-                                                        console.error('Erro ao gerar URL assinada:', error);
-                                                        return;
-                                                      }
-                                                      
-                                                      // Abrir o link em uma nova aba
-                                                      window.open(data.signedUrl, '_blank');
-                                                    });
-                                                } else {
+                                              e.preventDefault();
+                                              toast.loading('Gerando link de download...');
+                                              
+                                              // Tentar baixar diretamente primeiro
+                                              fetch(attachment.file_url)
+                                                .then(response => {
+                                                  if (response.ok) {
+                                                    // Se o URL direto funcionar, abrir em nova aba
+                                                    toast.dismiss();
+                                                    window.open(attachment.file_url, '_blank');
+                                                  } else {
+                                                    // Se falhar, tentar gerar URL assinada
+                                                    // Extrair o nome do arquivo do URL ou da descrição
+                                                    const fileName = attachment.filename || 
+                                                                    attachment.description || 
+                                                                    'arquivo';
+                                                    
+                                                    // Tentar fazer upload do arquivo novamente
+                                                    toast.dismiss();
+                                                    toast.error(`Erro ao acessar o arquivo. O arquivo "${fileName}" pode não existir mais no storage.`);
+                                                  }
+                                                })
+                                                .catch(error => {
+                                                  console.error('Erro ao acessar arquivo:', error);
                                                   toast.dismiss();
-                                                  toast.error('Erro ao processar o link do arquivo');
-                                                }
-                                              }
+                                                  toast.error('Erro ao acessar o arquivo. Tente novamente mais tarde.');
+                                                });
                                             }}
                                           >
                                             {attachment.description || attachment.filename}
