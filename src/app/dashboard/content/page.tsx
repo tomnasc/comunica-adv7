@@ -156,8 +156,11 @@ export default function ContentListPage() {
                                       href={file.file_url}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="text-sm text-indigo-600 hover:text-indigo-900"
+                                      className="text-sm text-indigo-600 hover:text-indigo-900 flex items-center"
                                     >
+                                      {file.is_external_link ? (
+                                        <span className="mr-1 text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded">MEGA</span>
+                                      ) : null}
                                       {file.filename}
                                     </a>
                                     <span className="text-sm text-gray-500">- {file.description}</span>

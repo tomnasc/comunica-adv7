@@ -161,41 +161,79 @@ export default function NewContentPage() {
       // Upload dos arquivos
       if (files.length > 0) {
         for (const fileData of files) {
-          const fileExt = fileData.file.name.split('.').pop()
-          const fileName = `${contentId}/${Math.random()}.${fileExt}`
+          // Verificar o tamanho do arquivo
+          const isLargeFile = fileData.file.size > 50 * 1024 * 1024; // Maior que 50MB
+          let fileUrl = '';
+          let isExternalLink = false;
 
-          // Upload do arquivo
-          const { error: uploadError } = await supabase.storage
-            .from('attachments')
-            .upload(fileName, fileData.file)
+          if (isLargeFile) {
+            // Para arquivos grandes, fazer upload para o Mega.io
+            try {
+              // Criar um FormData para enviar o arquivo
+              const formData = new FormData();
+              formData.append('file', fileData.file);
 
-          if (uploadError) {
-            console.error('Erro ao fazer upload do arquivo:', uploadError);
-            throw new Error(`Erro ao fazer upload do arquivo: ${uploadError.message}`);
+              // Enviar para a API de upload do Mega.io
+              const response = await fetch('/api/mega-upload', {
+                method: 'POST',
+                body: formData
+              });
+
+              if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Erro ao fazer upload para o Mega.io');
+              }
+
+              const result = await response.json();
+              fileUrl = result.megaLink;
+              isExternalLink = true;
+              
+              console.log('Arquivo grande enviado para o Mega.io:', fileUrl);
+            } catch (error) {
+              console.error('Erro ao fazer upload para o Mega.io:', error);
+              throw new Error(`Erro ao fazer upload para o Mega.io: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+            }
+          } else {
+            // Para arquivos pequenos, continuar usando o Supabase
+            const fileExt = fileData.file.name.split('.').pop()
+            const fileName = `${contentId}/${Math.random()}.${fileExt}`
+
+            // Upload do arquivo
+            const { error: uploadError } = await supabase.storage
+              .from('attachments')
+              .upload(fileName, fileData.file)
+
+            if (uploadError) {
+              console.error('Erro ao fazer upload do arquivo:', uploadError);
+              throw new Error(`Erro ao fazer upload do arquivo: ${uploadError.message}`);
+            }
+
+            // Gerar URL com token de acesso
+            const { data, error: signedUrlError } = await supabase.storage
+              .from('attachments')
+              .createSignedUrl(fileName, 31536000) // URL válida por 1 ano (em segundos)
+
+            if (signedUrlError) {
+              console.error('Erro ao gerar URL assinada:', signedUrlError);
+              throw new Error(`Erro ao gerar URL assinada: ${signedUrlError.message}`);
+            }
+
+            if (!data) {
+              throw new Error('Erro ao gerar URL assinada para o arquivo');
+            }
+
+            fileUrl = data.signedUrl;
           }
 
-          // Gerar URL com token de acesso
-          const { data, error: signedUrlError } = await supabase.storage
-            .from('attachments')
-            .createSignedUrl(fileName, 31536000) // URL válida por 1 ano (em segundos)
-
-          if (signedUrlError) {
-            console.error('Erro ao gerar URL assinada:', signedUrlError);
-            throw new Error(`Erro ao gerar URL assinada: ${signedUrlError.message}`);
-          }
-
-          if (!data) {
-            throw new Error('Erro ao gerar URL assinada para o arquivo');
-          }
-
-          // Inserir registro do anexo com URL assinada
+          // Inserir registro do anexo com a URL (Supabase ou Mega.io)
           const { error: attachmentError } = await supabase
             .from('file_attachments')
             .insert({
               content_id: contentId,
-              file_url: data.signedUrl,
+              file_url: fileUrl,
               description: fileData.description,
-              filename: fileData.file.name
+              filename: fileData.file.name,
+              is_external_link: isExternalLink
             })
 
           if (attachmentError) {

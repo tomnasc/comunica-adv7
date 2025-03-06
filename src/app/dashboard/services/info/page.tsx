@@ -496,10 +496,17 @@ export default function ServiceInfoPage() {
                                             href={attachment.file_url} 
                                             target="_blank" 
                                             rel="noopener noreferrer"
-                                            className="text-xs text-indigo-600 hover:text-indigo-900"
+                                            className="text-xs text-indigo-600 hover:text-indigo-900 flex items-center"
                                             onClick={(e) => {
                                               e.preventDefault();
                                               toast.loading('Gerando link de download...');
+                                              
+                                              // Se for um link externo, abrir diretamente
+                                              if (attachment.is_external_link) {
+                                                toast.dismiss();
+                                                window.open(attachment.file_url, '_blank');
+                                                return;
+                                              }
                                               
                                               // Tentar baixar diretamente primeiro
                                               fetch(attachment.file_url)
@@ -527,7 +534,10 @@ export default function ServiceInfoPage() {
                                                 });
                                             }}
                                           >
-                                            {attachment.description || attachment.filename}
+                                            {attachment.is_external_link ? (
+                                              <span className="mr-1 text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded">MEGA</span>
+                                            ) : null}
+                                            {attachment.filename || 'Anexo'}
                                           </a>
                                         </li>
                                       ))}

@@ -36,6 +36,7 @@ export type FileAttachment = {
   description: string
   filename: string
   created_at: string
+  is_external_link?: boolean
 }
 
 export type ServiceStatus = 'scheduled' | 'canceled' | 'completed'
