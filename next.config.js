@@ -8,6 +8,16 @@ const nextConfig = {
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_VERCEL_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` : 'http://localhost:3000',
   },
+  // Configuração para aumentar o limite de tamanho de upload
+  experimental: {
+    serverComponentsExternalPackages: ['megajs'],
+  },
+  api: {
+    bodyParser: {
+      sizeLimit: '500mb',
+    },
+    responseLimit: '500mb',
+  },
 }
 
 module.exports = nextConfig 

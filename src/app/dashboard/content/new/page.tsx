@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { toast } from 'react-hot-toast'
 import { supabase } from '@/lib/supabaseClient'
 import type { ServiceSchedule, User } from '@/types'
+import { uploadFileInChunks } from '@/lib/chunkUploader'
 
 const contentSchema = z.object({
   content: z.string().min(1, 'O conteúdo é obrigatório'),
@@ -26,6 +27,7 @@ export default function NewContentPage() {
   const [services, setServices] = useState<ServiceSchedule[]>([])
   const [user, setUser] = useState<User | null>(null)
   const [files, setFiles] = useState<{ file: File; description: string }[]>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const {
     register,
@@ -166,28 +168,20 @@ export default function NewContentPage() {
           let fileUrl = '';
           let isExternalLink = false;
 
-          if (isLargeFile) {
-            console.log('Arquivo grande detectado, usando API de large-file-upload');
+          // Para arquivos grandes (mais de 5MB), usar o upload em chunks
+          if (fileData.file.size > 5 * 1024 * 1024) {
+            console.log('Arquivo grande detectado, usando upload em chunks');
             try {
-              // Criar um FormData para enviar o arquivo
-              const formData = new FormData();
-              formData.append('file', fileData.file);
-
-              // Enviar para a API de upload de arquivos grandes
-              const response = await fetch('/api/large-file-upload', {
-                method: 'POST',
-                body: formData
-              });
-
-              if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Erro ao fazer upload do arquivo grande');
-              }
-
-              const result = await response.json();
-              fileUrl = result.fileUrl;
-              isExternalLink = false;
+              // Mostrar progresso do upload (implementação futura)
+              setIsSubmitting(true);
               
+              // Fazer upload em chunks
+              fileUrl = await uploadFileInChunks(fileData.file, (progress) => {
+                console.log(`Progresso do upload: ${progress.toFixed(2)}%`);
+                // Aqui poderia atualizar uma barra de progresso na UI
+              });
+              
+              isExternalLink = false;
               console.log('Arquivo grande enviado com sucesso:', fileUrl);
             } catch (error) {
               console.error('Erro ao fazer upload do arquivo grande:', error);
