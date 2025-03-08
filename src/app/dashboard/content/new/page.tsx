@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { toast } from 'react-hot-toast'
 import { supabase } from '@/lib/supabaseClient'
 import type { ServiceSchedule, User } from '@/types'
-import { uploadFileInChunks } from '@/lib/chunkUploader'
+import { uploadToDrive } from '@/lib/driveUploader'
 
 const contentSchema = z.object({
   content: z.string().min(1, 'O conteúdo é obrigatório'),
@@ -163,92 +163,26 @@ export default function NewContentPage() {
       // Upload dos arquivos
       if (files.length > 0) {
         for (const fileData of files) {
-          // Verificar o tamanho do arquivo
-          const isLargeFile = fileData.file.size > 5 * 1024 * 1024; // Maior que 5MB
           let fileUrl = '';
-          let isExternalLink = false;
+          let isExternalLink = true; // Todos os arquivos agora são links externos (Google Drive)
 
-          // Para arquivos grandes (mais de 5MB), usar o upload em chunks
-          if (fileData.file.size > 5 * 1024 * 1024) {
-            console.log('Arquivo grande detectado, usando upload em chunks');
-            try {
-              // Mostrar progresso do upload (implementação futura)
-              setIsSubmitting(true);
-              
-              // Fazer upload em chunks
-              const result = await uploadFileInChunks(fileData.file, (progress) => {
-                console.log(`Progresso do upload: ${progress.toFixed(2)}%`);
-                // Aqui poderia atualizar uma barra de progresso na UI
-              });
-              
-              // Verificar se o resultado é uma string (um arquivo) ou um array (múltiplas partes)
-              if (Array.isArray(result)) {
-                // Se for um array, o arquivo foi dividido em múltiplas partes
-                // Usar a primeira URL como principal e adicionar informações sobre as partes
-                fileUrl = result[0];
-                isExternalLink = false;
-                
-                // Adicionar informação sobre as partes no campo de descrição
-                const partesInfo = `Arquivo dividido em ${result.length} partes devido ao tamanho.\n`;
-                const listaPartes = result.map((url, idx) => `Parte ${idx + 1}: ${url}`).join('\n');
-                
-                // Obter o índice atual do arquivo na lista de arquivos
-                const currentFileIndex = files.findIndex(f => f.file === fileData.file);
-                
-                // Atualizar a descrição do arquivo
-                if (currentFileIndex !== -1) {
-                  const filesUpdated = [...files];
-                  filesUpdated[currentFileIndex] = {
-                    ...filesUpdated[currentFileIndex],
-                    description: partesInfo + listaPartes + '\n\n' + filesUpdated[currentFileIndex].description
-                  };
-                  setFiles(filesUpdated);
-                }
-                
-                console.log(`Arquivo grande dividido em ${result.length} partes e enviado com sucesso`);
-              } else {
-                // Se for uma string, é apenas um arquivo
-                fileUrl = result;
-                isExternalLink = false;
-                console.log('Arquivo grande enviado com sucesso:', fileUrl);
-              }
-            } catch (error) {
-              console.error('Erro ao fazer upload do arquivo grande:', error);
-              throw new Error(`Erro ao fazer upload do arquivo grande: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-            }
-          } else {
-            // Para arquivos pequenos, continuar usando o Supabase
-            const fileExt = fileData.file.name.split('.').pop()
-            const fileName = `${contentId}/${Math.random()}.${fileExt}`
-
-            // Upload do arquivo
-            const { error: uploadError } = await supabase.storage
-              .from('attachments')
-              .upload(fileName, fileData.file)
-
-            if (uploadError) {
-              console.error('Erro ao fazer upload do arquivo:', uploadError);
-              throw new Error(`Erro ao fazer upload do arquivo: ${uploadError.message}`);
-            }
-
-            // Gerar URL com token de acesso
-            const { data, error: signedUrlError } = await supabase.storage
-              .from('attachments')
-              .createSignedUrl(fileName, 31536000) // URL válida por 1 ano (em segundos)
-
-            if (signedUrlError) {
-              console.error('Erro ao gerar URL assinada:', signedUrlError);
-              throw new Error(`Erro ao gerar URL assinada: ${signedUrlError.message}`);
-            }
-
-            if (!data) {
-              throw new Error('Erro ao gerar URL assinada para o arquivo');
-            }
-
-            fileUrl = data.signedUrl;
+          try {
+            // Mostrar progresso do upload
+            setIsSubmitting(true);
+            
+            // Fazer upload para o Google Drive
+            fileUrl = await uploadToDrive(fileData.file, contentId, (progress) => {
+              console.log(`Progresso do upload: ${progress.toFixed(2)}%`);
+              // Aqui poderia atualizar uma barra de progresso na UI
+            });
+            
+            console.log('Arquivo enviado com sucesso para o Google Drive:', fileUrl);
+          } catch (error) {
+            console.error('Erro ao fazer upload do arquivo:', error);
+            throw new Error(`Erro ao fazer upload do arquivo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
           }
 
-          // Inserir registro do anexo com a URL (Supabase ou Mega.io)
+          // Inserir registro do anexo com a URL do Google Drive
           const { error: attachmentError } = await supabase
             .from('file_attachments')
             .insert({
