@@ -12,11 +12,9 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['megajs'],
   },
-  api: {
-    bodyParser: {
-      sizeLimit: '500mb',
-    },
-    responseLimit: '500mb',
+  // Configuração para aumentar o limite de tamanho de payload
+  serverRuntimeConfig: {
+    maxBodySize: '500mb',
   },
 }
 
