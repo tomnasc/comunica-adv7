@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { toast } from 'react-hot-toast'
 import { supabase } from '@/lib/supabaseClient'
 import type { ServiceSchedule, User } from '@/types'
-import { uploadToDrive } from '@/lib/driveUploader'
+import { uploadDirectToDrive } from '@/lib/directDriveUploader'
 
 const contentSchema = z.object({
   content: z.string().min(1, 'O conteúdo é obrigatório'),
@@ -170,8 +170,8 @@ export default function NewContentPage() {
             // Mostrar progresso do upload
             setIsSubmitting(true);
             
-            // Fazer upload para o Google Drive
-            fileUrl = await uploadToDrive(fileData.file, contentId, (progress) => {
+            // Fazer upload direto para o Google Drive
+            fileUrl = await uploadDirectToDrive(fileData.file, contentId, (progress) => {
               console.log(`Progresso do upload: ${progress.toFixed(2)}%`);
               // Aqui poderia atualizar uma barra de progresso na UI
             });
