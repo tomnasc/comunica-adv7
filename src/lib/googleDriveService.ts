@@ -1,23 +1,6 @@
-import { google } from 'googleapis';
-import { Readable } from 'stream';
-
-// Configuração do cliente OAuth2
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI
-);
-
-// Definir as credenciais usando o token de atualização
-oauth2Client.setCredentials({
-  refresh_token: process.env.GOOGLE_REFRESH_TOKEN
-});
-
-// Criar cliente do Google Drive
-const drive = google.drive({
-  version: 'v3',
-  auth: oauth2Client
-});
+/**
+ * Serviço para interagir com o Google Drive usando fetch em vez da biblioteca googleapis
+ */
 
 /**
  * Faz upload de um arquivo para o Google Drive
@@ -34,49 +17,112 @@ export async function uploadToDrive(
   folderId?: string
 ): Promise<string> {
   try {
-    // Criar um stream legível a partir do buffer
-    const fileStream = new Readable();
-    fileStream.push(file);
-    fileStream.push(null); // Indica o fim do stream
-
+    // Obter token de acesso usando o refresh token
+    const accessToken = await getAccessToken();
+    
     // Configurar os metadados do arquivo
-    const fileMetadata: any = {
+    const metadata: any = {
       name: fileName,
     };
 
     // Se um ID de pasta for fornecido, adicionar aos metadados
     if (folderId) {
-      fileMetadata.parents = [folderId];
+      metadata.parents = [folderId];
     }
 
-    // Configurar os parâmetros da requisição
-    const media = {
-      mimeType,
-      body: fileStream
-    };
+    // Criar um FormData para o upload
+    const formData = new FormData();
+    
+    // Adicionar os metadados como parte do formulário
+    formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    
+    // Adicionar o arquivo como parte do formulário
+    formData.append('file', new Blob([file], { type: mimeType }));
 
-    // Fazer upload do arquivo
-    const response = await drive.files.create({
-      requestBody: fileMetadata,
-      media: media,
-      fields: 'id,webViewLink'
+    // Fazer upload do arquivo usando a API do Google Drive
+    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: formData,
     });
 
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Erro ao fazer upload para o Google Drive: ${JSON.stringify(errorData)}`);
+    }
+
+    const data = await response.json();
+    
     // Tornar o arquivo público
-    await drive.permissions.create({
-      fileId: response.data.id!,
-      requestBody: {
-        role: 'reader',
-        type: 'anyone'
-      }
-    });
-
+    await makeFilePublic(data.id, accessToken);
+    
     // Retornar o link para visualização
-    return response.data.webViewLink || `https://drive.google.com/file/d/${response.data.id}/view`;
+    return `https://drive.google.com/file/d/${data.id}/view`;
   } catch (error) {
     console.error('Erro ao fazer upload para o Google Drive:', error);
     throw new Error(`Erro ao fazer upload para o Google Drive: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
   }
+}
+
+/**
+ * Torna um arquivo público no Google Drive
+ * @param fileId ID do arquivo no Google Drive
+ * @param accessToken Token de acesso
+ */
+async function makeFilePublic(fileId: string, accessToken: string): Promise<void> {
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      role: 'reader',
+      type: 'anyone',
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Erro ao tornar o arquivo público: ${JSON.stringify(errorData)}`);
+  }
+}
+
+/**
+ * Obtém um token de acesso usando o refresh token
+ * @returns Token de acesso
+ */
+async function getAccessToken(): Promise<string> {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error('Credenciais do Google Drive não configuradas');
+  }
+
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Erro ao obter token de acesso: ${JSON.stringify(errorData)}`);
+  }
+
+  const data = await response.json();
+  return data.access_token;
 }
 
 /**
