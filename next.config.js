@@ -10,7 +10,7 @@ const nextConfig = {
   },
   // Configuração para aumentar o limite de tamanho de upload
   experimental: {
-    serverComponentsExternalPackages: ['megajs'],
+    serverComponentsExternalPackages: ['megajs', 'googleapis'],
   },
   // Configuração para aumentar o limite de tamanho de payload
   serverRuntimeConfig: {
